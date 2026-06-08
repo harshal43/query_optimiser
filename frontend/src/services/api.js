@@ -94,3 +94,21 @@ export async function fetchSnowflakeQueries(category) {
   const res = await fetch(`${BASE}/snowflake/queries?category=${encodeURIComponent(category)}`);
   return handleResponse(res);
 }
+
+export async function batchAnalyzeQueries(queryIds, model) {
+  const res = await fetch(`${BASE}/batch-analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query_ids: queryIds, model }),
+  });
+  return handleResponse(res);
+}
+
+export async function batchOptimizeQueries(items, model) {
+  const res = await fetch(`${BASE}/batch-optimize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, model }),
+  });
+  return handleResponse(res);
+}

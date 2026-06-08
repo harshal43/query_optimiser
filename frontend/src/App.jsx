@@ -102,14 +102,37 @@ export default function App() {
   }, [analyzeResult, selectedNums, selectedQueryId, config, inputMode, customQueryText, customCredits]);
 
   const handleBatchAnalyzeAll = useCallback(async (selectedIds) => {
-    setBatchPhase('analyzing'); setBatchProgress(null); setBatchRunIds(selectedIds); setBatchAnalyzeResults({}); setBatchSuggestionSelections({}); setBatchOptimizeResults({}); setBatchViewQueryId(''); setError('');
-    const results = {}; const selections = {};
-    for (let i = 0; i < selectedIds.length; i++) {
-      const qid = selectedIds[i]; setBatchProgress({ current: i + 1, total: selectedIds.length, currentId: qid });
-      try { const res = await analyzeQuery(qid, config.model); results[qid] = res; selections[qid] = new Set(res.parsed_suggestions.map((s) => s.number)); }
-      catch (err) { results[qid] = { error: err.message }; selections[qid] = new Set(); }
-    }
-    setBatchAnalyzeResults(results); setBatchSuggestionSelections(selections); setBatchProgress(null); setBatchPhase('review');
+    setBatchPhase('analyzing');
+    setBatchProgress({ completed: 0, total: selectedIds.length });
+    setBatchRunIds(selectedIds);
+    setBatchAnalyzeResults({});
+    setBatchSuggestionSelections({});
+    setBatchOptimizeResults({});
+    setBatchViewQueryId('');
+    setError('');
+
+    const results = {};
+    const selections = {};
+    const counter = { value: 0 };
+
+    const promises = selectedIds.map(async (qid) => {
+      try {
+        const res = await analyzeQuery(qid, config.model);
+        results[qid] = res;
+        selections[qid] = new Set(res.parsed_suggestions.map((s) => s.number));
+      } catch (err) {
+        results[qid] = { error: err.message };
+        selections[qid] = new Set();
+      }
+      counter.value++;
+      setBatchProgress({ completed: counter.value, total: selectedIds.length });
+    });
+
+    await Promise.allSettled(promises);
+    setBatchAnalyzeResults(results);
+    setBatchSuggestionSelections(selections);
+    setBatchProgress(null);
+    setBatchPhase('review');
     const firstOk = selectedIds.find((id) => !results[id]?.error);
     if (firstOk) setBatchViewQueryId(firstOk);
   }, [config]);
@@ -124,18 +147,42 @@ export default function App() {
 
   const handleBatchOptimizeAll = useCallback(async () => {
     const successIds = batchRunIds.filter((id) => !batchAnalyzeResults[id]?.error);
-    setBatchPhase('optimizing'); setBatchProgress(null); setBatchOptimizeResults({}); setError('');
+    setBatchPhase('optimizing');
+    setBatchProgress({ completed: 0, total: successIds.length });
+    setBatchOptimizeResults({});
+    setError('');
+
     const results = {};
-    for (let i = 0; i < successIds.length; i++) {
-      const qid = successIds[i]; setBatchProgress({ current: i + 1, total: successIds.length, currentId: qid });
-      const sel = batchSuggestionSelections[qid] ?? new Set(); const analyzeRes = batchAnalyzeResults[qid];
-      const selectedTexts = (analyzeRes?.parsed_suggestions ?? []).filter((s) => sel.has(s.number)).map((s) => s.full_text);
-      if (selectedTexts.length === 0) { results[qid] = { error: 'No suggestions selected' }; continue; }
-      try { const res = await optimizeQuery(qid, config.model, selectedTexts); results[qid] = res; }
-      catch (err) { results[qid] = { error: err.message }; }
+    const counter = { value: 0 };
+
+    const promises = successIds.map(async (qid) => {
+      const sel = batchSuggestionSelections[qid] ?? new Set();
+      const analyzeRes = batchAnalyzeResults[qid];
+      const selectedTexts = (analyzeRes?.parsed_suggestions ?? [])
+        .filter((s) => sel.has(s.number))
+        .map((s) => s.full_text);
+      if (selectedTexts.length === 0) {
+        results[qid] = { error: 'No suggestions selected' };
+      } else {
+        try {
+          const res = await optimizeQuery(qid, config.model, selectedTexts);
+          results[qid] = res;
+        } catch (err) {
+          results[qid] = { error: err.message };
+        }
+      }
+      counter.value++;
+      setBatchProgress({ completed: counter.value, total: successIds.length });
+    });
+
+    await Promise.allSettled(promises);
+    setBatchOptimizeResults(results);
+    setBatchProgress(null);
+    setBatchPhase('results');
+    if (!batchViewQueryId || results[batchViewQueryId]?.error) {
+      const firstOk = successIds.find((id) => !results[id]?.error);
+      if (firstOk) setBatchViewQueryId(firstOk);
     }
-    setBatchOptimizeResults(results); setBatchProgress(null); setBatchPhase('results');
-    if (!batchViewQueryId || results[batchViewQueryId]?.error) { const firstOk = successIds.find((id) => !results[id]?.error); if (firstOk) setBatchViewQueryId(firstOk); }
   }, [batchRunIds, batchAnalyzeResults, batchSuggestionSelections, batchViewQueryId, config]);
 
   const handleOpenSfModal = useCallback(() => {

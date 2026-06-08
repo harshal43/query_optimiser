@@ -53,6 +53,23 @@ class LLMClient:
             response.raise_for_status()
             return response.json()
 
+    async def async_chat(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.2,
+        max_tokens: int = 4096,
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(self.endpoint, headers=self._headers(), json=payload)
+            response.raise_for_status()
+            return response.json()
+
     def extract_content(self, response: Dict[str, Any]) -> str:
         # OpenAI-compat format
         try:

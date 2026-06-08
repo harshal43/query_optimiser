@@ -75,6 +75,23 @@ def parse_suggestions(raw: str) -> list:
 # Agent runner
 # ------------------------------------------------------------
 
+async def run_advisor_agent_async(client: LLMClient, query: str) -> dict:
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"Analyze the following Snowflake SQL query and provide optimization suggestions.\n\n```sql\n{query}\n```"}
+    ]
+    response = await client.async_chat(messages, temperature=0.1)
+    content = client.extract_content(response)
+    usage = client.extract_usage(response)
+    raw_usage = usage.pop("raw_usage", {})
+    cost_info = calculate_cost(client.model, usage["prompt_tokens"], usage["completion_tokens"])
+    return {
+        "suggestions_raw": content.strip(),
+        "parsed_suggestions": parse_suggestions(content),
+        "token_usage": {**cost_info, "raw_usage": raw_usage},
+    }
+
+
 def run_advisor_agent(client: LLMClient, query: str) -> dict:
     """Run the Optimization Advisor agent.
 

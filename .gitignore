@@ -6,4 +6,4 @@ env/
 
 # Ignore local environment variables and secrets
 *.env
-.env.*
+.env

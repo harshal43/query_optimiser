@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List
@@ -6,8 +7,8 @@ from ..models.schemas import QueryDetail, QueryListResponse, SnowflakeCredential
 from ..data.loader import get_query_ids, get_query, reload_cache, get_debug_info, load_from_upload, get_active_source
 from ..data import snowflake_connector
 from ..llm.client import LLMClient
-from ..agents.advisor import run_advisor_agent
-from ..agents.optimizer import run_optimizer_agent
+from ..agents.advisor import run_advisor_agent, run_advisor_agent_async
+from ..agents.optimizer import run_optimizer_agent, run_optimizer_agent_async
 from ..config import SUPPORTED_MODELS, get_llm_credentials
 
 router = APIRouter(prefix="/api", tags=["Query Optimization"])
@@ -35,6 +36,18 @@ class OptimizeCustomRequest(BaseModel):
     credits: float = 0.0
     model: str
     selected_suggestions: List[str]
+
+class BatchAnalyzeRequest(BaseModel):
+    query_ids: List[str]
+    model: str
+
+class BatchOptimizeItem(BaseModel):
+    query_id: str
+    selected_suggestions: List[str]
+
+class BatchOptimizeRequest(BaseModel):
+    items: List[BatchOptimizeItem]
+    model: str
 
 # ------------------------------------------------------------
 # Query catalogue endpoints
@@ -159,8 +172,7 @@ def snowflake_queries(category: str = "all"):
 # ------------------------------------------------------------
 
 @router.post("/analyze")
-def analyze_query(request: AnalyzeRequest):
-    """Run Agent 1 only. Returns the original query text and a list of parsed, individually-addressable optimization suggestions."""
+async def analyze_query(request: AnalyzeRequest):
     if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
@@ -174,7 +186,7 @@ def analyze_query(request: AnalyzeRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        advisor_result = run_advisor_agent(client, query_data["query_text"])
+        advisor_result = await run_advisor_agent_async(client, query_data["query_text"])
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -193,8 +205,7 @@ def analyze_query(request: AnalyzeRequest):
 # ------------------------------------------------------------
 
 @router.post("/optimize")
-def optimize_query(request: OptimizeRequest):
-    """Run Agent 2 using only the suggestions the user selected. Returns the optimized query, explanation, and credit comparison."""
+async def optimize_query(request: OptimizeRequest):
     if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
@@ -217,13 +228,12 @@ def optimize_query(request: OptimizeRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        optimizer_result = run_optimizer_agent(client, original_query, selected_text)
+        optimizer_result = await run_optimizer_agent_async(client, original_query, selected_text)
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Optimizer agent failed: {exc}")
 
-    # Credit comparison
     savings = optimizer_result.get("credit_savings", {})
     savings_pct = savings.get("percentage", 0.0)
     estimated_optimized_credits = round(credits * (1 - savings_pct / 100), 6)
@@ -247,8 +257,7 @@ def optimize_query(request: OptimizeRequest):
 # ------------------------------------------------------------
 
 @router.post("/analyze-custom")
-def analyze_custom_query(request: AnalyzeCustomRequest):
-    """Run Agent 1 on a user-supplied SQL query (no query catalogue needed)."""
+async def analyze_custom_query(request: AnalyzeCustomRequest):
     if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
@@ -260,7 +269,7 @@ def analyze_custom_query(request: AnalyzeCustomRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        advisor_result = run_advisor_agent(client, request.query_text)
+        advisor_result = await run_advisor_agent_async(client, request.query_text)
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -275,8 +284,7 @@ def analyze_custom_query(request: AnalyzeCustomRequest):
     }
 
 @router.post("/optimize-custom")
-def optimize_custom_query(request: OptimizeCustomRequest):
-    """Run Agent 2 on a user-supplied SQL query with selected suggestions."""
+async def optimize_custom_query(request: OptimizeCustomRequest):
     if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
@@ -296,7 +304,7 @@ def optimize_custom_query(request: OptimizeCustomRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        optimizer_result = run_optimizer_agent(client, request.query_text, selected_text)
+        optimizer_result = await run_optimizer_agent_async(client, request.query_text, selected_text)
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -319,3 +327,83 @@ def optimize_custom_query(request: OptimizeCustomRequest):
             "savings_reasoning": savings.get("reasoning", ""),
         },
     }
+
+# ------------------------------------------------------------
+# Batch endpoints — parallel execution with concurrency cap
+# ------------------------------------------------------------
+
+_BATCH_SEM_SIZE = 5
+
+
+@router.post("/batch-analyze")
+async def batch_analyze(request: BatchAnalyzeRequest):
+    if request.model not in SUPPORTED_MODELS:
+        raise HTTPException(status_code=400, detail=f"Model '{request.model}' not supported.")
+    try:
+        creds = get_llm_credentials(request.model)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    sem = asyncio.Semaphore(_BATCH_SEM_SIZE)
+
+    async def analyze_one(qid: str) -> dict:
+        async with sem:
+            try:
+                query_data = get_query(qid)
+                client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
+                result = await run_advisor_agent_async(client, query_data["query_text"])
+                return {
+                    "query_id": qid,
+                    "success": True,
+                    "original_query": query_data["query_text"],
+                    "credits": query_data["credits"],
+                    "suggestions_raw": result["suggestions_raw"],
+                    "parsed_suggestions": result["parsed_suggestions"],
+                }
+            except Exception as exc:
+                return {"query_id": qid, "success": False, "error": str(exc)}
+
+    results = await asyncio.gather(*[analyze_one(qid) for qid in request.query_ids])
+    return {"results": list(results), "total": len(results), "model": request.model}
+
+
+@router.post("/batch-optimize")
+async def batch_optimize(request: BatchOptimizeRequest):
+    if request.model not in SUPPORTED_MODELS:
+        raise HTTPException(status_code=400, detail=f"Model '{request.model}' not supported.")
+    try:
+        creds = get_llm_credentials(request.model)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    sem = asyncio.Semaphore(_BATCH_SEM_SIZE)
+
+    async def optimize_one(item: BatchOptimizeItem) -> dict:
+        async with sem:
+            try:
+                query_data = get_query(item.query_id)
+                original_query = query_data["query_text"]
+                credits = query_data["credits"]
+                selected_text = "\n\n".join(item.selected_suggestions)
+                client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
+                result = await run_optimizer_agent_async(client, original_query, selected_text)
+                savings_pct = result.get("credit_savings", {}).get("percentage", 0.0)
+                est_credits = round(credits * (1 - savings_pct / 100), 6)
+                return {
+                    "query_id": item.query_id,
+                    "success": True,
+                    "original_query": original_query,
+                    "optimizer_result": result,
+                    "cost_comparison": {
+                        "original_credits": credits,
+                        "estimated_optimized_credits": est_credits,
+                        "credits_saved": round(credits - est_credits, 6),
+                        "savings_percentage": round(savings_pct, 2),
+                        "savings_reasoning": result.get("credit_savings", {}).get("reasoning", ""),
+                    },
+                }
+            except Exception as exc:
+                return {"query_id": item.query_id, "success": False, "error": str(exc)}
+
+    results = await asyncio.gather(*[optimize_one(item) for item in request.items])
+    return {"results": list(results), "total": len(results), "model": request.model}

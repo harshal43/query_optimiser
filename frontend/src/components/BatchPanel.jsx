@@ -129,17 +129,22 @@ export default function BatchPanel({
         </>
       )}
 
-      {batchPhase === 'analyzing' && batchProgress && (
+      {(batchPhase === 'analyzing' || batchPhase === 'optimizing') && batchProgress && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-            <span>Agent 1 analyzing: <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>{batchProgress.currentId}</span></span>
-            <span>{batchProgress.current} / {batchProgress.total}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="spinner" style={{ width: 10, height: 10, borderWidth: 2, borderColor: 'rgba(88,166,255,0.2)', borderTopColor: batchPhase === 'optimizing' ? 'var(--success)' : 'var(--accent)', flexShrink: 0 }} />
+              {batchPhase === 'analyzing' ? 'Agent 1 analyzing' : 'Agent 2 optimizing'} in parallel
+            </span>
+            <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)', fontWeight: 600 }}>
+              {batchProgress.completed} / {batchProgress.total}
+            </span>
           </div>
           <div className="comparison-bar">
-            <div className="comparison-bar-fill" style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }} />
+            <div className="comparison-bar-fill" style={{ width: `${(batchProgress.completed / batchProgress.total) * 100}%`, background: batchPhase === 'optimizing' ? 'var(--success)' : undefined }} />
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
-            {batchProgress.current - 1} completed so far...
+            {batchProgress.total - batchProgress.completed} remaining · running up to 5 at once
           </div>
         </div>
       )}

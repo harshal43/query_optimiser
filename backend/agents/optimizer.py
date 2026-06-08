@@ -87,6 +87,29 @@ def extract_credit_savings(content: str) -> dict:
 # Agent runner
 # ------------------------------------------------------------
 
+async def run_optimizer_agent_async(
+    client: LLMClient,
+    original_query: str,
+    suggestions: str,
+) -> dict:
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"Original Snowflake SQL query:\n```sql\n{original_query}\n```\n\nOptimization suggestions:\n{suggestions}\n\nProduce the optimized query, explain all changes, and estimate credit savings."}
+    ]
+    response = await client.async_chat(messages, temperature=0.1)
+    content = client.extract_content(response)
+    usage = client.extract_usage(response)
+    raw_usage = usage.pop("raw_usage", {})
+    cost_info = calculate_cost(client.model, usage["prompt_tokens"], usage["completion_tokens"])
+    return {
+        "optimized_query": extract_sql(content),
+        "explanation": extract_explanation(content),
+        "credit_savings": extract_credit_savings(content),
+        "raw_response": content,
+        "token_usage": {**cost_info, "raw_usage": raw_usage},
+    }
+
+
 def run_optimizer_agent(
     client: LLMClient,
     original_query: str,
