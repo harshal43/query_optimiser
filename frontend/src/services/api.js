@@ -70,3 +70,27 @@ export async function optimizeCustomQuery(queryText, credits, model, selectedSug
   });
   return handleResponse(res);
 }
+
+export async function connectSnowflake(credentials) {
+  const res = await fetch(`${BASE}/snowflake/connect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(credentials),
+  });
+  return handleResponse(res);
+}
+
+export async function checkSnowflakeStatus() {
+  const res = await fetch(`${BASE}/snowflake/status`);
+  return handleResponse(res);
+}
+
+export async function disconnectSnowflake() {
+  const res = await fetch(`${BASE}/snowflake/disconnect`, { method: 'POST' });
+  return handleResponse(res);
+}
+
+export async function fetchSnowflakeQueries(category) {
+  const res = await fetch(`${BASE}/snowflake/queries?category=${encodeURIComponent(category)}`);
+  return handleResponse(res);
+}

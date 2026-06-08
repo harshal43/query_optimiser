@@ -5,3 +5,4 @@ pydantic
 pandas
 openpyxl
 numpy
+snowflake-connector-python

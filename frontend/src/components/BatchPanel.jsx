@@ -32,6 +32,8 @@ export default function BatchPanel({
   onDownload,
   onReset,
   canRun,
+  selectedQueryId,
+  onSelectQuery,
 }) {
   const [selected, setSelected] = useState(new Set());
   const allSelected = queryIds.length > 0 && selected.size === queryIds.length;
@@ -83,17 +85,35 @@ export default function BatchPanel({
                 </span>
               </div>
               <div style={checkboxGridStyle}>
-                {queryIds.map((id) => (
-                  <label key={id} style={checkboxLabelStyle(false)}>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(id)}
-                      onChange={() => toggleOne(id)}
-                      style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{id}</span>
-                  </label>
-                ))}
+                {queryIds.map((id) => {
+                  const isActive = selectedQueryId === id;
+                  return (
+                    <div
+                      key={id}
+                      style={checkboxLabelStyle(isActive)}
+                      title="Click to preview query · check to include in batch"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(id)}
+                        onChange={() => toggleOne(id)}
+                        style={{ accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <span
+                        onClick={() => onSelectQuery?.(id)}
+                        style={{
+                          fontFamily: 'var(--mono)', fontSize: 11, cursor: 'pointer',
+                          color: isActive ? 'var(--accent)' : 'var(--text)',
+                          fontWeight: isActive ? 600 : 400,
+                          flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {id}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
               <button
                 className="btn-optimize"

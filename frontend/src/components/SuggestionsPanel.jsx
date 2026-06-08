@@ -40,9 +40,16 @@ export default function SuggestionsPanel({ analyzeResult, analyzing, selectedNum
 
       {/* Loading */}
       {analyzing && (
-        <div className="empty-state">
-          <div className="icon" style={{ fontSize: 28 }}>&#x1F9E0;</div>
-          Analyzing query...
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '32px 0' }}>
+          <span className="spinner" style={{ width: 28, height: 28, borderWidth: 3, borderColor: 'rgba(88,166,255,0.2)', borderTopColor: 'var(--accent)' }} />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, fontFamily: 'var(--sans)', marginBottom: 4 }}>
+              Agent 1 analyzing query...
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--sans)' }}>
+              Identifying optimization opportunities
+            </div>
+          </div>
         </div>
       )}
 

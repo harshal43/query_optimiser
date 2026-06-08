@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 # ------------------------------------------------------------
@@ -50,3 +51,37 @@ class QueryDetail(BaseModel):
 
 class QueryListResponse(BaseModel):
     query_ids: list[str]
+
+
+# ------------------------------------------------------------
+# Snowflake connector schemas
+# ------------------------------------------------------------
+
+class SnowflakeCredentials(BaseModel):
+    account: str
+    user: str
+    password: str
+    role: str = ""
+    warehouse: str = ""
+    database: str = ""
+    schema_name: str = ""
+
+
+class SnowflakeConnectResponse(BaseModel):
+    connected: bool
+    account: Optional[str] = None
+    message: str
+
+
+class SnowflakeStatusResponse(BaseModel):
+    connected: bool
+    account: Optional[str] = None
+    message: str
+
+
+class SnowflakeQueryRow(BaseModel):
+    query_id: str
+    query_text: str
+    credits: float
+    frequency: Optional[int] = None
+    score: Optional[float] = None

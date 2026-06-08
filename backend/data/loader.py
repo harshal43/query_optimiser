@@ -46,13 +46,12 @@ def _fetch_raw_data() -> pd.DataFrame:
     The rest of the module stays identical.
     """
     if _uploaded_bytes is not None:
+        if _uploaded_filename and _uploaded_filename.lower().endswith(".csv"):
+            return pd.read_csv(io.BytesIO(_uploaded_bytes), dtype=str)
         return pd.read_excel(io.BytesIO(_uploaded_bytes), dtype=str)
 
     if not DATA_PATH.exists():
-        raise FileNotFoundError(
-            f"Data file not found at: {DATA_PATH}\n"
-            "Ensure 'query_to_be_optimised.xlsx' is in the project root."
-        )
+        return pd.DataFrame()
 
     return pd.read_excel(DATA_PATH, dtype=str)
 
@@ -92,20 +91,12 @@ def _resolve_columns(df: pd.DataFrame) -> Dict[str, str]:
 
 def _build_query_map(df: pd.DataFrame) -> Dict[str, dict]:
     """Group rows by Query Id, concatenate multi-row Query Text, keep Credits.
-
-    Column names are resolved case-insensitively via _resolve_columns().
-
-    Excel pattern handled:
-        Query Id | Query Text       | Credits
-        Q1       | SELECT *         | 5
-                 | FROM orders      |
-                 | WHERE id = 1     |
-        Q2       | SELECT COUNT(*)  | 3
-                 | ...
-
-    Forward-filling the Query Id column propagates "Q1" down to all its rows before groupby,
-    so every part of the query text is captured.
+    Returns empty dict when df has no rows (no file uploaded yet).
+    Forward-fills Query Id so multi-row queries are captured correctly.
     """
+    if df.empty:
+        return {}
+
     col = _resolve_columns(df)
 
     import numpy as np
@@ -207,7 +198,7 @@ def get_active_source() -> str:
 def get_debug_info() -> dict:
     """Return raw Excel metadata for diagnosing column issues."""
     if not DATA_PATH.exists():
-        return {"error": f"File not found: {_DATA_PATH}"}
+        return {"error": f"File not found: {DATA_PATH}"}
     try:
         df = pd.read_excel(DATA_PATH, dtype=str, nrows=3)
         return {

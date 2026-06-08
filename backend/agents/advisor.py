@@ -61,15 +61,13 @@ def parse_suggestions(raw: str) -> list:
         if not m:
             continue
         number = int(m.group(1))
-        content = m.group(2).strip()
-        lines = content.split('\n')
-        title = lines[0].strip()
-        body = '\n'.join(lines[1:]).strip() if len(lines) > 1 else ''
+        title = m.group(2).strip()
+        body = m.group(3).strip()
         result.append({
             "number": number,
             "title": title,
             "body": body,
-            "full_text": f"{number}. {content}",
+            "full_text": part.strip(),
         })
     return result
 

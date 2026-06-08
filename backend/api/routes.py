@@ -2,8 +2,9 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List
 
-from ..models.schemas import QueryDetail, QueryListResponse
+from ..models.schemas import QueryDetail, QueryListResponse, SnowflakeCredentials
 from ..data.loader import get_query_ids, get_query, reload_cache, get_debug_info, load_from_upload, get_active_source
+from ..data import snowflake_connector
 from ..llm.client import LLMClient
 from ..agents.advisor import run_advisor_agent
 from ..agents.optimizer import run_optimizer_agent
@@ -88,8 +89,8 @@ def debug_llm_test(request: dict):
 
 @router.post("/upload-excel")
 async def upload_excel(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(status_code=400, detail="Only .xlsx or .xls files are accepted.")
+    if not file.filename.lower().endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(status_code=400, detail="Only .xlsx, .xls, or .csv files are accepted.")
     try:
         content = await file.read()
         result = load_from_upload(content, file.filename)
@@ -104,6 +105,54 @@ def data_source():
 @router.get("/models")
 def list_models():
     return {"models": SUPPORTED_MODELS}
+
+# ------------------------------------------------------------
+# Snowflake connector endpoints
+# ------------------------------------------------------------
+
+@router.post("/snowflake/connect")
+def snowflake_connect(request: SnowflakeCredentials):
+    try:
+        snowflake_connector.connect(request.model_dump())
+        return {
+            "connected": True,
+            "account": snowflake_connector.get_account(),
+            "message": "Connected successfully",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Connection failed: {exc}")
+
+
+@router.get("/snowflake/status")
+def snowflake_status():
+    connected = snowflake_connector.is_connected()
+    return {
+        "connected": connected,
+        "account": snowflake_connector.get_account() if connected else None,
+        "message": f"Connected to {snowflake_connector.get_account()}" if connected else "Not connected",
+    }
+
+
+@router.post("/snowflake/disconnect")
+def snowflake_disconnect():
+    snowflake_connector.disconnect()
+    return {"message": "Disconnected"}
+
+
+@router.get("/snowflake/queries")
+def snowflake_queries(category: str = "all"):
+    if not snowflake_connector.is_connected():
+        raise HTTPException(
+            status_code=503,
+            detail="Not connected to Snowflake. Call POST /api/snowflake/connect first.",
+        )
+    try:
+        rows = snowflake_connector.fetch_queries(category)
+        return {"category": category, "rows": rows, "count": len(rows)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Query failed: {exc}")
 
 # ------------------------------------------------------------
 # Step 1 — Analyze: run Agent 1, return parsed suggestions

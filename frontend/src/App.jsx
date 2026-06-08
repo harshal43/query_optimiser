@@ -8,9 +8,12 @@ import OptimizedQueryPanel from './components/OptimizedQueryPanel.jsx';
 import CostComparison from './components/CostComparison.jsx';
 import CostBreakdown from './components/CostBreakdown.jsx';
 import TokenBadge from './components/TokenBadge.jsx';
+import SnowflakeConnectModal from './components/SnowflakeConnectModal.jsx';
+import SnowflakeDashboard from './components/SnowflakeDashboard.jsx';
 import {
   fetchQueryIds, fetchQueryDetail, uploadExcel, analyzeQuery, optimizeQuery,
   analyzeCustomQuery, optimizeCustomQuery,
+  connectSnowflake, checkSnowflakeStatus, disconnectSnowflake,
 } from './services/api.js';
 
 const DEFAULT_CONFIG = { model: 'claude-sonnet-4-6' };
@@ -38,6 +41,13 @@ export default function App() {
   const [batchOptimizeResults, setBatchOptimizeResults] = useState({});
   const [batchViewQueryId, setBatchViewQueryId] = useState('');
   const [error, setError] = useState('');
+
+  // Snowflake connection state
+  const [sfConnected, setSfConnected]       = useState(false);
+  const [sfAccount, setSfAccount]           = useState('');
+  const [showSfModal, setShowSfModal]       = useState(false);
+  const [sfConnecting, setSfConnecting]     = useState(false);
+  const [sfConnectError, setSfConnectError] = useState('');
 
   useEffect(() => {
     if (!selectedQueryId) { setQueryDetail(null); setAnalyzeResult(null); setSelectedNums(new Set()); setOptimizeResult(null); return; }
@@ -128,6 +138,54 @@ export default function App() {
     if (!batchViewQueryId || results[batchViewQueryId]?.error) { const firstOk = successIds.find((id) => !results[id]?.error); if (firstOk) setBatchViewQueryId(firstOk); }
   }, [batchRunIds, batchAnalyzeResults, batchSuggestionSelections, batchViewQueryId, config]);
 
+  const handleOpenSfModal = useCallback(() => {
+    setSfConnectError(''); setShowSfModal(true);
+  }, []);
+
+  const handleCloseSfModal = useCallback(() => {
+    if (!sfConnecting) setShowSfModal(false);
+  }, [sfConnecting]);
+
+  const handleSnowflakeConnect = useCallback(async (credentials) => {
+    setSfConnecting(true); setSfConnectError('');
+    try {
+      const res = await connectSnowflake(credentials);
+      setSfConnected(true); setSfAccount(res.account || credentials.account);
+      setShowSfModal(false);
+    } catch (err) {
+      setSfConnectError(err.message);
+    } finally {
+      setSfConnecting(false);
+    }
+  }, []);
+
+  const handleSnowflakeDisconnect = useCallback(async () => {
+    try { await disconnectSnowflake(); } catch (_) {}
+    setSfConnected(false); setSfAccount('');
+    setInputMode('excel');
+  }, []);
+
+  const handleSnowflakeCheckConnection = useCallback(async () => {
+    try {
+      const status = await checkSnowflakeStatus();
+      if (!status.connected) {
+        setSfConnected(false); setSfAccount('');
+        setError('Snowflake connection lost. Please reconnect.');
+      }
+      return status;
+    } catch (err) {
+      setError(`Connection check failed: ${err.message}`);
+      return { connected: false };
+    }
+  }, []);
+
+  const handleSfQuerySelect = useCallback((row) => {
+    setCustomQueryText(row.query_text);
+    setCustomCredits(String(row.credits || 0));
+    setInputMode('custom');
+    setAnalyzeResult(null); setSelectedNums(new Set()); setOptimizeResult(null); setError('');
+  }, []);
+
   const handleBatchReset = useCallback(() => {
     setBatchPhase('idle'); setBatchProgress(null); setBatchRunIds([]); setBatchAnalyzeResults({}); setBatchSuggestionSelections({}); setBatchOptimizeResults({}); setBatchViewQueryId(''); setError('');
   }, []);
@@ -196,11 +254,21 @@ export default function App() {
   })();
 
   const hideSuggestApplyBtn = batchPhase === 'review' || batchPhase === 'optimizing';
-  const canAnalyze = !!config.model && !analyzing && !optimizing;
+  const canAnalyze = !!config.model && !analyzing && !optimizing && inputMode !== 'snowflake'
+    && (inputMode !== 'excel' || !!selectedQueryId);
   const canOptimize = panelAnalyzeResult && panelSelectedNums.size > 0 && !analyzing && !optimizing;
 
   return (
     <div className="app">
+      {showSfModal && (
+        <SnowflakeConnectModal
+          onConnect={handleSnowflakeConnect}
+          onClose={handleCloseSfModal}
+          connecting={sfConnecting}
+          error={sfConnectError}
+        />
+      )}
+
       <header className="app-header">
         <h1>
           <span className="logo-icon">&#x26A1;</span>
@@ -230,7 +298,19 @@ export default function App() {
         onCustomQueryTextChange={setCustomQueryText}
         customCredits={customCredits}
         onCustomCreditsChange={setCustomCredits}
+        sfConnected={sfConnected}
+        sfAccount={sfAccount}
+        onOpenSnowflakeModal={handleOpenSfModal}
       />
+
+      {inputMode === 'snowflake' && sfConnected && (
+        <SnowflakeDashboard
+          account={sfAccount}
+          onSelectQuery={handleSfQuerySelect}
+          onDisconnect={handleSnowflakeDisconnect}
+          onCheckConnection={handleSnowflakeCheckConnection}
+        />
+      )}
 
       {inputMode === 'excel' && (
         <BatchPanel
@@ -247,6 +327,8 @@ export default function App() {
           onDownload={handleBatchDownload}
           onReset={handleBatchReset}
           canRun={!!config.model}
+          selectedQueryId={selectedQueryId}
+          onSelectQuery={setSelectedQueryId}
         />
       )}
 

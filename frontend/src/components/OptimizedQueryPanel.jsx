@@ -37,9 +37,16 @@ export default function OptimizedQueryPanel({ optimizerResult, loading, onRegene
       </div>
 
       {loading && (
-        <div className="empty-state">
-          <div className="icon" style={{ fontSize: 28 }}>&#x1F504;</div>
-          Rewriting query...
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '32px 0' }}>
+          <span className="spinner" style={{ width: 28, height: 28, borderWidth: 3, borderColor: 'rgba(63,185,80,0.2)', borderTopColor: 'var(--success)' }} />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, fontFamily: 'var(--sans)', marginBottom: 4 }}>
+              Agent 2 rewriting query...
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--sans)' }}>
+              Applying selected optimizations
+            </div>
+          </div>
         </div>
       )}
 

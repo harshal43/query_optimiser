@@ -1,12 +1,15 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import Editor from '@monaco-editor/react';
 
 export default function ConfigPanel({
   config, onConfigChange, queryIds, selectedQueryId, onQueryChange,
   onAnalyze, analyzing, canAnalyze, onUpload, uploading, uploadedFilename,
   inputMode, onInputModeChange, customQueryText, onCustomQueryTextChange,
   customCredits, onCustomCreditsChange,
+  sfConnected, sfAccount, onOpenSnowflakeModal,
 }) {
   const fileInputRef = useRef(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -14,8 +17,22 @@ export default function ConfigPanel({
     e.target.value = '';
   };
 
-  const analyzeTooltip = inputMode === 'custom' && !customQueryText.trim() ? 'Enter a SQL query'
-    : inputMode === 'excel' && !selectedQueryId ? 'Select a query'
+  const isValidFile = (file) => /\.(xlsx|xls|csv)$/i.test(file.name);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (uploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file && isValidFile(file)) onUpload(file);
+  };
+
+  const handleDragOver = (e) => { e.preventDefault(); if (!uploading) setDragOver(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setDragOver(false); };
+
+  const analyzeTooltip = inputMode === 'snowflake' ? 'Select a query from the Snowflake dashboard below'
+    : inputMode === 'custom' && !customQueryText.trim() ? 'Enter a SQL query'
+    : inputMode === 'excel' && !selectedQueryId ? 'Select a query from the batch panel below'
     : 'Run Agent 1 - get optimization suggestions';
 
   return (
@@ -59,7 +76,7 @@ export default function ConfigPanel({
             cursor: 'pointer', fontFamily: 'var(--sans)',
           }}
         >
-          &#x1F4C1; Upload Excel
+          &#x1F4C1; Upload Excel / CSV
         </button>
         <button
           onClick={() => onInputModeChange('custom')}
@@ -73,47 +90,102 @@ export default function ConfigPanel({
         >
           &#x270F; Custom Query
         </button>
+        <button
+          onClick={() => {
+            onInputModeChange('snowflake');
+            if (!sfConnected) onOpenSnowflakeModal();
+          }}
+          style={{
+            padding: '5px 14px', fontSize: '12px', borderRadius: 'var(--radius)',
+            border: '1px solid var(--border-2)',
+            background: inputMode === 'snowflake' ? 'var(--accent)' : 'var(--surface-2)',
+            color: inputMode === 'snowflake' ? '#fff' : 'var(--text)',
+            cursor: 'pointer', fontFamily: 'var(--sans)',
+          }}
+        >
+          &#x2744;&#xFE0F; Snowflake Live
+        </button>
       </div>
 
-      {/* Excel mode */}
+      {/* Snowflake mode — connect CTA or connected status */}
+      {inputMode === 'snowflake' && !sfConnected && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={onOpenSnowflakeModal}
+            style={{
+              padding: '7px 18px', fontSize: 13, borderRadius: 'var(--radius)',
+              border: '1px solid var(--border-2)', background: 'var(--surface-2)',
+              color: 'var(--text)', cursor: 'pointer', fontFamily: 'var(--sans)',
+            }}
+          >
+            &#x2744;&#xFE0F; Connect to Snowflake
+          </button>
+          <span style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
+            No active connection
+          </span>
+        </div>
+      )}
+      {inputMode === 'snowflake' && sfConnected && (
+        <div style={{ fontSize: 12, color: 'var(--success)', fontFamily: 'var(--mono)' }}>
+          &#x25CF; Connected to {sfAccount} &mdash; select a query from the dashboard below
+        </div>
+      )}
+
+      {/* Excel / CSV mode */}
       {inputMode === 'excel' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.csv"
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+
+          {/* Drop zone */}
+          <div
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
             style={{
-              display: 'flex', alignItems: 'center', gap: '7px',
-              background: 'var(--surface-2)', border: '1px solid var(--border-2)',
-              borderRadius: 'var(--radius)', color: 'var(--text)',
-              fontFamily: 'var(--sans)', fontSize: '13px', padding: '7px 14px',
+              border: `2px dashed ${dragOver ? 'var(--accent)' : uploadedFilename ? 'var(--success)' : 'var(--border-2)'}`,
+              borderRadius: 8,
+              padding: '20px 16px',
+              textAlign: 'center',
               cursor: uploading ? 'not-allowed' : 'pointer',
-              opacity: uploading ? 0.6 : 1, whiteSpace: 'nowrap',
+              background: dragOver ? 'rgba(99,102,241,0.07)' : 'var(--surface-2)',
+              transition: 'border-color 0.15s, background 0.15s',
+              opacity: uploading ? 0.7 : 1,
             }}
-            onMouseEnter={(e) => { if (!uploading) e.currentTarget.style.borderColor = 'var(--accent-dim)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-2)'; }}
           >
-            {uploading ? (<> <span className="spinner" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'var(--text-muted)' }} /> Uploading...</>) : (<>&#x1F4C1; Upload Excel</>)}
-          </button>
-          <span style={{ fontSize: '12px', color: uploadedFilename ? 'var(--success)' : 'var(--text-dim)', fontFamily: 'var(--mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {uploadedFilename ? `&#x2713; ${uploadedFilename} (${queryIds.length} queries loaded)` : 'No file uploaded'}
-          </span>
-          <div className="field" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
-            <select
-              value={selectedQueryId}
-              onChange={(e) => onQueryChange(e.target.value)}
-              disabled={queryIds.length === 0 || uploading}
-            >
-              <option value="">{uploading ? 'Uploading...' : queryIds.length === 0 ? 'Upload a file first...' : '- Select a query -'}</option>
-              {queryIds.map((id) => (<option key={id} value={id}>{id}</option>))}
-            </select>
+            {uploading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--sans)' }}>
+                <span className="spinner" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: 'var(--text-muted)' }} />
+                Uploading...
+              </div>
+            ) : uploadedFilename ? (
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
+                <div style={{ color: 'var(--success)', fontWeight: 600, marginBottom: 4 }}>
+                  &#x2713; {uploadedFilename}
+                </div>
+                <div style={{ color: 'var(--text-dim)' }}>
+                  {queryIds.length} queries loaded &mdash; drop another file to replace
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontFamily: 'var(--sans)', fontSize: 13 }}>
+                <div style={{ fontSize: 22, marginBottom: 6 }}>&#x1F4C1;</div>
+                <div style={{ color: 'var(--text)', fontWeight: 600, marginBottom: 4 }}>
+                  {dragOver ? 'Drop to upload' : 'Drag & drop here, or click to browse'}
+                </div>
+                <div style={{ color: 'var(--text-dim)', fontSize: 11 }}>
+                  Supports .xlsx, .xls, .csv
+                </div>
+              </div>
+            )}
           </div>
+
         </div>
       )}
 
@@ -122,20 +194,31 @@ export default function ConfigPanel({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label>SQL Query</label>
-            <textarea
-              rows={8}
-              placeholder="Paste or type your Snowflake SQL query here..."
-              value={customQueryText}
-              onChange={(e) => onCustomQueryTextChange(e.target.value)}
-              style={{
-                width: '100%', boxSizing: 'border-box', fontFamily: 'var(--mono)',
-                fontSize: '12px', background: 'var(--surface-2)', color: 'var(--text)',
-                border: '1px solid var(--border-2)', borderRadius: 'var(--radius)',
-                padding: '10px 12px', resize: 'vertical', outline: 'none',
-              }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent-dim)'; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-2)'; }}
-            />
+            <div style={{ height: 220, border: '1px solid #30363d', borderRadius: 8, overflow: 'hidden' }}>
+              <Editor
+                language="sql"
+                value={customQueryText}
+                theme="vs-dark"
+                onChange={(val) => onCustomQueryTextChange(val ?? '')}
+                options={{
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  fontSize: 12.5,
+                  lineNumbers: 'on',
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  scrollbar: { verticalScrollbarSize: 6, horizontalScrollbarSize: 6 },
+                }}
+                loading={
+                  <div style={{
+                    height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: '#0d1117', color: '#8b949e', fontSize: 12, fontFamily: 'monospace',
+                  }}>
+                    Loading editor...
+                  </div>
+                }
+              />
+            </div>
           </div>
           <div className="field" style={{ width: '220px', marginBottom: 0 }}>
             <label>Snowflake Credits (optional)</label>
