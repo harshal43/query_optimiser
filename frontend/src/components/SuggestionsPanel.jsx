@@ -1,0 +1,124 @@
+/** * SuggestionsPanel - Agent 1 results with per-suggestion checkboxes.
+ *
+ * Props:
+ *   analyzeResult    : { parsed_suggestions: [{number, title, body, full_text}] } | null
+ *   analyzing        : bool
+ *   selectedNums     : Set<number>
+ *   onToggle         : (number) => void
+ *   onOptimize       : () => void
+ *   optimizing       : bool
+ *   canOptimize      : bool
+ *   hideOptimizeButton : bool
+ */
+export default function SuggestionsPanel({ analyzeResult, analyzing, selectedNums, onToggle, onOptimize, optimizing, canOptimize, hideOptimizeButton, }) {
+  const suggestions = analyzeResult?.parsed_suggestions ?? [];
+  const allChecked = suggestions.length > 0 && suggestions.every((s) => selectedNums.has(s.number));
+  const noneChecked = suggestions.every((s) => !selectedNums.has(s.number));
+
+  const handleSelectAll = () => {
+    suggestions.forEach((s) => { if (!selectedNums.has(s.number)) onToggle(s.number); });
+  };
+  const handleDeselectAll = () => {
+    suggestions.forEach((s) => { if (selectedNums.has(s.number)) onToggle(s.number); });
+  };
+
+  return (
+    <div className="card">
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div className="card-title" style={{ margin: 0 }}>
+          Agent 1 - Optimization Advisor
+          <span className="badge" style={{ marginLeft: 8 }}>ADVISOR</span>
+        </div>
+        {suggestions.length > 0 && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={handleSelectAll} disabled={allChecked} style={smallBtnStyle}>All</button>
+            <button onClick={handleDeselectAll} disabled={noneChecked} style={smallBtnStyle}>None</button>
+          </div>
+        )}
+      </div>
+
+      {/* Loading */}
+      {analyzing && (
+        <div className="empty-state">
+          <div className="icon" style={{ fontSize: 28 }}>&#x1F9E0;</div>
+          Analyzing query...
+        </div>
+      )}
+
+      {/* Empty */}
+      {!analyzing && !analyzeResult && (
+        <div className="empty-state">
+          <div className="icon">&#x1F4A1;</div>
+          Click <strong>Analyze</strong> to get optimization suggestions.
+        </div>
+      )}
+
+      {/* Suggestions list with checkboxes */}
+      {!analyzing && suggestions.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+          {suggestions.map((s) => {
+            const checked = selectedNums.has(s.number);
+            return (
+              <label
+                key={s.number}
+                style={{
+                  display: 'flex', gap: 12, padding: '10px 12px',
+                  borderRadius: 'var(--radius)',
+                  border: `1px solid ${checked ? 'var(--accent-dim)' : 'var(--border)'}`,
+                  background: checked ? 'rgba(31,111,235,0.06)' : 'var(--bg)',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s, background 0.15s',
+                  alignItems: 'flex-start',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggle(s.number)}
+                  style={{ marginTop: 3, accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: checked ? 'var(--text)' : 'var(--text-muted)', marginBottom: s.body ? 5 : 0 }}>
+                    {s.number}. {s.title}
+                  </div>
+                  {s.body && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                      {s.body}
+                    </div>
+                  )}
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Apply button */}
+      {!analyzing && suggestions.length > 0 && !hideOptimizeButton && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+          <button
+            className="btn-optimize"
+            onClick={onOptimize}
+            disabled={!canOptimize}
+            style={{ width: '100%', justifyContent: 'center' }}
+            title={selectedNums.size === 0 ? 'Select at least one suggestion' : 'Run Agent 2 with selected suggestions'}
+          >
+            {optimizing ? (<> <span className="spinner" /> Optimizing...</>) : (<> &#x25B6; Apply {selectedNums.size} Selected Suggestion{selectedNums.size !== 1 ? 's' : ''}</>)}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const smallBtnStyle = {
+  background: 'var(--surface-2)',
+  border: '1px solid var(--border-2)',
+  borderRadius: 5,
+  color: 'var(--text-muted)',
+  fontSize: 11,
+  padding: '3px 10px',
+  cursor: 'pointer',
+  fontFamily: 'var(--sans)',
+};

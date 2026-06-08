@@ -1,0 +1,9 @@
+# Ignore dependency folders anywhere in the project
+**/node_modules/
+**/venv/
+.venv/
+env/
+
+# Ignore local environment variables and secrets
+*.env
+.env.*
