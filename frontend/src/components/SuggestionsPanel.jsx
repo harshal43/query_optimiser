@@ -1,16 +1,8 @@
-/** * SuggestionsPanel - Agent 1 results with per-suggestion checkboxes.
- *
- * Props:
- *   analyzeResult    : { parsed_suggestions: [{number, title, body, full_text}] } | null
- *   analyzing        : bool
- *   selectedNums     : Set<number>
- *   onToggle         : (number) => void
- *   onOptimize       : () => void
- *   optimizing       : bool
- *   canOptimize      : bool
- *   hideOptimizeButton : bool
- */
+import { useState } from 'react';
+
 export default function SuggestionsPanel({ analyzeResult, analyzing, selectedNums, onToggle, onOptimize, optimizing, canOptimize, hideOptimizeButton, }) {
+  const [collapsed, setCollapsed] = useState(false);
+
   const suggestions = analyzeResult?.parsed_suggestions ?? [];
   const allChecked = suggestions.length > 0 && suggestions.every((s) => selectedNums.has(s.number));
   const noneChecked = suggestions.every((s) => !selectedNums.has(s.number));
@@ -22,15 +14,32 @@ export default function SuggestionsPanel({ analyzeResult, analyzing, selectedNum
     suggestions.forEach((s) => { if (selectedNums.has(s.number)) onToggle(s.number); });
   };
 
+  const hasContent = !analyzing && suggestions.length > 0;
+
   return (
     <div className="card">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div className="card-title" style={{ margin: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsed && hasContent ? 0 : 14 }}>
+        <div
+          className="card-title"
+          style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, cursor: hasContent ? 'pointer' : 'default', userSelect: 'none' }}
+          onClick={() => hasContent && setCollapsed((v) => !v)}
+          title={hasContent ? (collapsed ? 'Expand suggestions' : 'Collapse suggestions') : undefined}
+        >
           Agent 1 - Optimization Advisor
-          <span className="badge" style={{ marginLeft: 8 }}>ADVISOR</span>
+          <span className="badge">ADVISOR</span>
+          {hasContent && (
+            <span style={{ fontSize: 13, color: 'var(--text-dim)', marginLeft: 2, transition: 'transform 0.2s', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+              &#x25BE;
+            </span>
+          )}
+          {collapsed && hasContent && (
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--sans)', fontWeight: 400, marginLeft: 4 }}>
+              {selectedNums.size} / {suggestions.length} selected
+            </span>
+          )}
         </div>
-        {suggestions.length > 0 && (
+        {!collapsed && suggestions.length > 0 && (
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={handleSelectAll} disabled={allChecked} style={smallBtnStyle}>All</button>
             <button onClick={handleDeselectAll} disabled={noneChecked} style={smallBtnStyle}>None</button>
@@ -61,8 +70,8 @@ export default function SuggestionsPanel({ analyzeResult, analyzing, selectedNum
         </div>
       )}
 
-      {/* Suggestions list with checkboxes */}
-      {!analyzing && suggestions.length > 0 && (
+      {/* Suggestions list — hidden when collapsed */}
+      {!collapsed && !analyzing && suggestions.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
           {suggestions.map((s) => {
             const checked = selectedNums.has(s.number);
@@ -102,7 +111,7 @@ export default function SuggestionsPanel({ analyzeResult, analyzing, selectedNum
       )}
 
       {/* Apply button */}
-      {!analyzing && suggestions.length > 0 && !hideOptimizeButton && (
+      {!collapsed && !analyzing && suggestions.length > 0 && !hideOptimizeButton && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
           <button
             className="btn-optimize"

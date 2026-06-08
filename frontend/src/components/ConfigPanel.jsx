@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 
 export default function ConfigPanel({
   config, onConfigChange, queryIds, selectedQueryId, onQueryChange,
-  onAnalyze, analyzing, canAnalyze, onUpload, uploading, uploadedFilename,
+  onUpload, uploading, uploadedFilename,
   inputMode, onInputModeChange, customQueryText, onCustomQueryTextChange,
   customCredits, onCustomCreditsChange,
   sfConnected, sfAccount, onOpenSnowflakeModal,
@@ -30,11 +30,6 @@ export default function ConfigPanel({
   const handleDragOver = (e) => { e.preventDefault(); if (!uploading) setDragOver(true); };
   const handleDragLeave = (e) => { e.preventDefault(); setDragOver(false); };
 
-  const analyzeTooltip = inputMode === 'snowflake' ? 'Select a query from the Snowflake dashboard below'
-    : inputMode === 'custom' && !customQueryText.trim() ? 'Enter a SQL query'
-    : inputMode === 'excel' && !selectedQueryId ? 'Select a query from the batch panel below'
-    : 'Run Agent 1 - get optimization suggestions';
-
   return (
     <div className="card">
       <div className="card-title">Configuration</div>
@@ -51,14 +46,6 @@ export default function ConfigPanel({
           </select>
         </div>
         <div style={{ flex: 1 }} />
-        <button
-          className="btn-optimize"
-          onClick={onAnalyze}
-          disabled={!canAnalyze}
-          title={analyzeTooltip}
-        >
-          {analyzing ? (<> <span className="spinner" /> Analyzing...</>) : (<>&#x1F50D; Analyze</>)}
-        </button>
       </div>
 
       {/* Mode toggle */}

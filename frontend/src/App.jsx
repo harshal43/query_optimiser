@@ -300,7 +300,8 @@ export default function App() {
     return queryDetail;
   })();
 
-  const hideSuggestApplyBtn = batchPhase === 'review' || batchPhase === 'optimizing';
+  const hideSuggestApplyBtn = batchPhase === 'review' || batchPhase === 'optimizing'
+    || (!isBatchActive && !!optimizeResult);
   const canAnalyze = !!config.model && !analyzing && !optimizing && inputMode !== 'snowflake'
     && (inputMode !== 'excel' || !!selectedQueryId);
   const canOptimize = panelAnalyzeResult && panelSelectedNums.size > 0 && !analyzing && !optimizing;
@@ -322,9 +323,6 @@ export default function App() {
           Query Optimization System
           <span className="subtitle">Snowflake SQL - LLM-powered</span>
         </h1>
-        <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
-          backend: localhost:8000 - frontend: localhost:5173
-        </span>
       </header>
 
       <ConfigPanel
