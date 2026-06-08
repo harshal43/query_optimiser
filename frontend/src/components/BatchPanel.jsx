@@ -129,6 +129,68 @@ export default function BatchPanel({
         </>
       )}
 
+      {batchPhase === 'review' && (
+        <div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+            <div style={statChipStyle('#58a6ff')}>
+              <span style={{ fontWeight: 700 }}>{successfulAnalyzeIds.length}</span>
+              <span style={{ opacity: 0.7 }}>analyzed</span>
+            </div>
+            {analyzedIds.length - successfulAnalyzeIds.length > 0 && (
+              <div style={statChipStyle('#f85149')}>
+                <span style={{ fontWeight: 700 }}>{analyzedIds.length - successfulAnalyzeIds.length}</span>
+                <span style={{ opacity: 0.7 }}>failed</span>
+              </div>
+            )}
+            <div style={statChipStyle('#3fb950')}>
+              <span style={{ fontWeight: 700 }}>
+                {successfulAnalyzeIds.reduce((n, id) => n + (batchSuggestionSelections[id]?.size ?? 0), 0)}
+              </span>
+              <span style={{ opacity: 0.7 }}>suggestions selected</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+            Review suggestions in the panels below. Click any query to preview and adjust its selections.
+          </div>
+          <button
+            className="btn-optimize"
+            onClick={onOptimizeAll}
+            disabled={!canOptimizeAll}
+            style={{ width: '100%', justifyContent: 'center' }}
+            title={!canOptimizeAll ? 'All analyzed queries need at least one suggestion selected' : `Optimize ${successfulAnalyzeIds.length} quer${successfulAnalyzeIds.length === 1 ? 'y' : 'ies'} with Agent 2`}
+          >
+            &#x25B6; Run Agent 2 on {successfulAnalyzeIds.length} Quer{successfulAnalyzeIds.length === 1 ? 'y' : 'ies'}
+          </button>
+        </div>
+      )}
+
+      {batchPhase === 'results' && (
+        <div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+            <div style={statChipStyle('#3fb950')}>
+              <span style={{ fontWeight: 700 }}>{successfulOptimizeIds.length}</span>
+              <span style={{ opacity: 0.7 }}>optimized</span>
+            </div>
+            {optimizedIds.length - successfulOptimizeIds.length > 0 && (
+              <div style={statChipStyle('#f85149')}>
+                <span style={{ fontWeight: 700 }}>{optimizedIds.length - successfulOptimizeIds.length}</span>
+                <span style={{ opacity: 0.7 }}>failed</span>
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn-optimize"
+              onClick={onDownload}
+              disabled={successfulOptimizeIds.length === 0}
+              style={{ flex: 1, justifyContent: 'center', background: 'rgba(63,185,80,0.12)', color: 'var(--success)', borderColor: 'rgba(63,185,80,0.3)' }}
+            >
+              &#x2B07; Download Excel
+            </button>
+          </div>
+        </div>
+      )}
+
       {(batchPhase === 'analyzing' || batchPhase === 'optimizing') && batchProgress && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
@@ -171,6 +233,19 @@ const checkboxGridStyle = {
   overflowY: 'auto',
   paddingRight: 4,
 };
+
+const statChipStyle = (color) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 5,
+  padding: '4px 10px',
+  borderRadius: 20,
+  border: `1px solid ${color}33`,
+  background: `${color}11`,
+  color,
+  fontSize: 12,
+  fontFamily: 'var(--sans)',
+});
 
 const checkboxLabelStyle = (checked) => ({
   display: 'flex',
