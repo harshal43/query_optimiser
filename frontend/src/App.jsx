@@ -125,11 +125,11 @@ export default function App() {
         selections[qid] = new Set();
       }
       counter.value++;
+      setBatchAnalyzeResults((prev) => ({ ...prev, [qid]: results[qid] }));
       setBatchProgress({ completed: counter.value, total: selectedIds.length });
     });
 
     await Promise.allSettled(promises);
-    setBatchAnalyzeResults(results);
     setBatchSuggestionSelections(selections);
     setBatchProgress(null);
     setBatchPhase('review');
@@ -172,11 +172,11 @@ export default function App() {
         }
       }
       counter.value++;
+      setBatchOptimizeResults((prev) => ({ ...prev, [qid]: results[qid] }));
       setBatchProgress({ completed: counter.value, total: successIds.length });
     });
 
     await Promise.allSettled(promises);
-    setBatchOptimizeResults(results);
     setBatchProgress(null);
     setBatchPhase('results');
     if (!batchViewQueryId || results[batchViewQueryId]?.error) {
@@ -369,6 +369,7 @@ export default function App() {
           batchOptimizeResults={batchOptimizeResults}
           batchViewQueryId={batchViewQueryId}
           onBatchViewChange={setBatchViewQueryId}
+          batchRunIds={batchRunIds}
           onAnalyzeAll={handleBatchAnalyzeAll}
           onOptimizeAll={handleBatchOptimizeAll}
           onDownload={handleBatchDownload}

@@ -1,23 +1,5 @@
 import { useState } from 'react';
 
-/** * BatchPanel - multi-phase batch workflow control panel.
- * * Phases: idle -> analyzing -> review -> optimizing -> results
- *
- * Props:
- *   queryIds                     : string[]
- *   batchPhase                   : 'idle'|'analyzing'|'review'|'optimizing'|'results'
- *   batchProgress                : { current, total, currentId, agentLabel } | null
- *   batchAnalyzeResults          : Record<queryId, analyzeResult | { error: string }>
- *   batchSuggestionSelections    : Record<queryId, Set<number>>
- *   batchOptimizeResults         : Record<queryId, optimizeResult | { error: string }>
- *   batchViewQueryId             : string
- *   onBatchViewChange            : (queryId: string) => void
- *   onAnalyzeAll                 : (selectedIds: string[]) => void
- *   onOptimizeAll                : () => void
- *   onDownload                   : () => void
- *   onReset                      : () => void
- *   canRun                       : bool
- */
 export default function BatchPanel({
   queryIds,
   batchPhase,
@@ -34,6 +16,7 @@ export default function BatchPanel({
   canRun,
   selectedQueryId,
   onSelectQuery,
+  batchRunIds,
 }) {
   const [selected, setSelected] = useState(new Set());
   const allSelected = queryIds.length > 0 && selected.size === queryIds.length;
@@ -52,9 +35,29 @@ export default function BatchPanel({
 
   const canOptimizeAll = successfulAnalyzeIds.length > 0 && successfulAnalyzeIds.every((id) => (batchSuggestionSelections[id]?.size ?? 0) > 0);
   const isActive = batchPhase !== 'idle';
+  const isClickable = batchPhase === 'review' || batchPhase === 'results';
+
+  const getQueryStatus = (id) => {
+    if (batchPhase === 'analyzing' || batchPhase === 'review') {
+      const r = batchAnalyzeResults[id];
+      if (!r) return { type: 'running', color: 'var(--accent)' };
+      if (r.error) return { type: 'error', color: '#f85149', label: '✗' };
+      return { type: 'ok', color: '#3fb950', label: '✓' };
+    }
+    // optimizing or results
+    const ar = batchAnalyzeResults[id];
+    if (ar?.error) return { type: 'skipped', color: 'var(--text-dim)', label: '—' };
+    const or = batchOptimizeResults[id];
+    if (!or) return { type: 'running', color: 'var(--success)' };
+    if (or.error) return { type: 'error', color: '#f85149', label: '✗' };
+    return { type: 'ok', color: '#3fb950', label: '✓' };
+  };
+
+  const activeList = isActive ? (batchRunIds ?? []) : [];
 
   return (
     <div className="card">
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div className="card-title" style={{ margin: 0 }}>
           Batch Processing
@@ -68,6 +71,7 @@ export default function BatchPanel({
         )}
       </div>
 
+      {/* IDLE: checkbox selection */}
       {batchPhase === 'idle' && (
         <>
           {queryIds.length === 0 ? (
@@ -86,13 +90,9 @@ export default function BatchPanel({
               </div>
               <div style={checkboxGridStyle}>
                 {queryIds.map((id) => {
-                  const isActive = selectedQueryId === id;
+                  const isPreviewing = selectedQueryId === id;
                   return (
-                    <div
-                      key={id}
-                      style={checkboxLabelStyle(isActive)}
-                      title="Click to preview query · check to include in batch"
-                    >
+                    <div key={id} style={checkboxLabelStyle(isPreviewing)} title="Click to preview · check to include in batch">
                       <input
                         type="checkbox"
                         checked={selected.has(id)}
@@ -104,8 +104,8 @@ export default function BatchPanel({
                         onClick={() => onSelectQuery?.(id)}
                         style={{
                           fontFamily: 'var(--mono)', fontSize: 11, cursor: 'pointer',
-                          color: isActive ? 'var(--accent)' : 'var(--text)',
-                          fontWeight: isActive ? 600 : 400,
+                          color: isPreviewing ? 'var(--accent)' : 'var(--text)',
+                          fontWeight: isPreviewing ? 600 : 400,
                           flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}
                       >
@@ -119,8 +119,8 @@ export default function BatchPanel({
                 className="btn-optimize"
                 onClick={() => onAnalyzeAll([...selected])}
                 disabled={!canRun || selected.size === 0}
-                title={!canRun ? 'Enter API Key and Endpoint URL first' : selected.size === 0 ? 'Select at least one query' : `Analyze ${selected.size} quer${selected.size === 1 ? 'y' : 'ies'} with Agent 1`}
                 style={{ marginTop: 14 }}
+                title={!canRun ? 'Enter API Key first' : selected.size === 0 ? 'Select at least one query' : `Analyze ${selected.size} queries with Agent 1`}
               >
                 &#x1F50D; Analyze {selected.size > 0 ? `${selected.size} ` : ''}Quer{selected.size === 1 ? 'y' : 'ies'}
               </button>
@@ -129,9 +129,67 @@ export default function BatchPanel({
         </>
       )}
 
+      {/* ACTIVE PHASES: per-query status list */}
+      {isActive && activeList.length > 0 && (
+        <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
+          {activeList.map((id) => {
+            const status = getQueryStatus(id);
+            const isViewing = batchViewQueryId === id;
+            return (
+              <div
+                key={id}
+                onClick={isClickable ? () => onBatchViewChange(id) : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+                  borderRadius: 'var(--radius)',
+                  border: `1px solid ${isViewing ? 'var(--accent-dim)' : 'var(--border-2)'}`,
+                  background: isViewing ? 'rgba(88,166,255,0.06)' : 'transparent',
+                  cursor: isClickable ? 'pointer' : 'default',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}
+              >
+                {/* Status indicator */}
+                <span style={{ width: 14, height: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {status.type === 'running' ? (
+                    <span className="spinner" style={{
+                      width: 10, height: 10, borderWidth: 2,
+                      borderColor: `${status.color}33`,
+                      borderTopColor: status.color,
+                    }} />
+                  ) : (
+                    <span style={{ fontSize: 11, color: status.color, fontWeight: 700, lineHeight: 1 }}>{status.label}</span>
+                  )}
+                </span>
+                {/* Query ID */}
+                <span style={{
+                  fontFamily: 'var(--mono)', fontSize: 11, flex: 1,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  color: isViewing ? 'var(--accent)' : status.type === 'error' || status.type === 'skipped' ? 'var(--text-dim)' : 'var(--text)',
+                  fontWeight: isViewing ? 600 : 400,
+                }}>
+                  {id}
+                </span>
+                {/* Error tooltip */}
+                {status.type === 'error' && (
+                  <span style={{ fontSize: 10, color: '#f85149', fontFamily: 'var(--mono)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    title={(batchAnalyzeResults[id] ?? batchOptimizeResults[id])?.error}>
+                    err
+                  </span>
+                )}
+                {/* Click hint during review/results */}
+                {isClickable && !isViewing && status.type === 'ok' && (
+                  <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--sans)' }}>view →</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* REVIEW: stat chips + Optimize button */}
       {batchPhase === 'review' && (
         <div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
             <div style={statChipStyle('#58a6ff')}>
               <span style={{ fontWeight: 700 }}>{successfulAnalyzeIds.length}</span>
               <span style={{ opacity: 0.7 }}>analyzed</span>
@@ -149,24 +207,25 @@ export default function BatchPanel({
               <span style={{ opacity: 0.7 }}>suggestions selected</span>
             </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-            Review suggestions in the panels below. Click any query to preview and adjust its selections.
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.6 }}>
+            Click any query above to preview and adjust suggestions. Then run Agent 2.
           </div>
           <button
             className="btn-optimize"
             onClick={onOptimizeAll}
             disabled={!canOptimizeAll}
             style={{ width: '100%', justifyContent: 'center' }}
-            title={!canOptimizeAll ? 'All analyzed queries need at least one suggestion selected' : `Optimize ${successfulAnalyzeIds.length} quer${successfulAnalyzeIds.length === 1 ? 'y' : 'ies'} with Agent 2`}
+            title={!canOptimizeAll ? 'Each analyzed query needs at least one suggestion selected' : `Optimize ${successfulAnalyzeIds.length} queries with Agent 2`}
           >
             &#x25B6; Run Agent 2 on {successfulAnalyzeIds.length} Quer{successfulAnalyzeIds.length === 1 ? 'y' : 'ies'}
           </button>
         </div>
       )}
 
+      {/* RESULTS: stat chips + Download */}
       {batchPhase === 'results' && (
         <div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
             <div style={statChipStyle('#3fb950')}>
               <span style={{ fontWeight: 700 }}>{successfulOptimizeIds.length}</span>
               <span style={{ opacity: 0.7 }}>optimized</span>
@@ -178,35 +237,42 @@ export default function BatchPanel({
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className="btn-optimize"
-              onClick={onDownload}
-              disabled={successfulOptimizeIds.length === 0}
-              style={{ flex: 1, justifyContent: 'center', background: 'rgba(63,185,80,0.12)', color: 'var(--success)', borderColor: 'rgba(63,185,80,0.3)' }}
-            >
-              &#x2B07; Download Excel
-            </button>
-          </div>
+          <button
+            className="btn-optimize"
+            onClick={onDownload}
+            disabled={successfulOptimizeIds.length === 0}
+            style={{ width: '100%', justifyContent: 'center', background: 'rgba(63,185,80,0.12)', color: 'var(--success)', borderColor: 'rgba(63,185,80,0.3)' }}
+          >
+            &#x2B07; Download Excel
+          </button>
         </div>
       )}
 
+      {/* ANALYZING / OPTIMIZING: overall progress bar */}
       {(batchPhase === 'analyzing' || batchPhase === 'optimizing') && batchProgress && (
-        <div>
+        <div style={{ marginTop: 4 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="spinner" style={{ width: 10, height: 10, borderWidth: 2, borderColor: 'rgba(88,166,255,0.2)', borderTopColor: batchPhase === 'optimizing' ? 'var(--success)' : 'var(--accent)', flexShrink: 0 }} />
-              {batchPhase === 'analyzing' ? 'Agent 1 analyzing' : 'Agent 2 optimizing'} in parallel
+              <span className="spinner" style={{
+                width: 10, height: 10, borderWidth: 2,
+                borderColor: 'rgba(88,166,255,0.2)',
+                borderTopColor: batchPhase === 'optimizing' ? 'var(--success)' : 'var(--accent)',
+                flexShrink: 0,
+              }} />
+              {batchPhase === 'analyzing' ? 'Agent 1' : 'Agent 2'} running in parallel
             </span>
             <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)', fontWeight: 600 }}>
               {batchProgress.completed} / {batchProgress.total}
             </span>
           </div>
           <div className="comparison-bar">
-            <div className="comparison-bar-fill" style={{ width: `${(batchProgress.completed / batchProgress.total) * 100}%`, background: batchPhase === 'optimizing' ? 'var(--success)' : undefined }} />
+            <div className="comparison-bar-fill" style={{
+              width: `${(batchProgress.completed / batchProgress.total) * 100}%`,
+              background: batchPhase === 'optimizing' ? 'var(--success)' : undefined,
+            }} />
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
-            {batchProgress.total - batchProgress.completed} remaining · running up to 5 at once
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+            {batchProgress.total - batchProgress.completed} remaining
           </div>
         </div>
       )}
