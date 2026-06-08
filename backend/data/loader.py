@@ -29,7 +29,7 @@ _uploaded_filename: Optional[str] = None
 COL_ALIASES = {
     "query_id": ["query_id", "queryid", "query_id", "id"],
     "query_text": ["query_text", "query", "sql", "sql_text"],
-    "credits": ["credits", "credit", "snowflake_credits", "snowflake_credits", "cost"],
+    "credits": ["credits", "credit", "snowflake_credits", "cost"],
 }
 
 
@@ -64,7 +64,7 @@ def _resolve_columns(df: pd.DataFrame) -> Dict[str, str]:
     Raises ValueError listing the actual columns if any required field cannot be matched.
     """
     actual = {c.strip(): c for c in df.columns}
-    actual_lower = {k.lower(): v for k, v in actual.items()}
+    actual_lower = {k.lower().replace(" ", "_"): v for k, v in actual.items()}
 
     resolved: Dict[str, str] = {}
     missing: List[str] = []

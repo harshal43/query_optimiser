@@ -14,9 +14,7 @@ export default function ConfigPanel({
     e.target.value = '';
   };
 
-  const analyzeTooltip = !config.apiKey.trim() ? 'Enter an API key'
-    : !config.baseUrl.trim() ? 'Enter an endpoint URL'
-    : inputMode === 'custom' && !customQueryText.trim() ? 'Enter a SQL query'
+  const analyzeTooltip = inputMode === 'custom' && !customQueryText.trim() ? 'Enter a SQL query'
     : inputMode === 'excel' && !selectedQueryId ? 'Select a query'
     : 'Run Agent 1 - get optimization suggestions';
 
@@ -24,36 +22,15 @@ export default function ConfigPanel({
     <div className="card">
       <div className="card-title">Configuration</div>
 
-      {/* Row 1 - API Key + Endpoint URL */}
-      <div className="config-grid" style={{ marginBottom: '12px' }}>
-        <div className="field">
-          <label>API Key</label>
-          <input
-            type="password"
-            placeholder="sk-... or your X-API-KEY value"
-            value={config.apiKey}
-            onChange={(e) => onConfigChange('apiKey', e.target.value)}
-            autoComplete="off"
-          />
-        </div>
-        <div className="field">
-          <label>LLM API Endpoint URL</label>
-          <input
-            type="url"
-            placeholder="https://api.openai.com/v1 or full /chat/completions URL"
-            value={config.baseUrl}
-            onChange={(e) => onConfigChange('baseUrl', e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Row 2 - Model + Analyze button */}
+      {/* Model selector + Analyze button */}
       <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: '16px' }}>
-        <div className="field" style={{ width: '180px', flexShrink: 0 }}>
+        <div className="field" style={{ width: '220px', flexShrink: 0 }}>
           <label>Model</label>
           <select value={config.model} onChange={(e) => onConfigChange('model', e.target.value)}>
-            <option value="gpt-4o">gpt-4o</option>
-            <option value="gpt-4o-mini">gpt-4o-mini</option>
+            <option value="claude-sonnet-4-6">Claude 4 Sonnet</option>
+            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4o-mini">GPT-4o mini</option>
           </select>
         </div>
         <div style={{ flex: 1 }} />

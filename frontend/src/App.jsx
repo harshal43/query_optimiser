@@ -13,7 +13,7 @@ import {
   analyzeCustomQuery, optimizeCustomQuery,
 } from './services/api.js';
 
-const DEFAULT_CONFIG = { apiKey: '', baseUrl: '', model: 'gpt-4o' };
+const DEFAULT_CONFIG = { model: 'claude-sonnet-4-6' };
 
 export default function App() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
@@ -66,8 +66,8 @@ export default function App() {
     setError(''); setAnalyzeResult(null); setSelectedNums(new Set()); setOptimizeResult(null); setAnalyzing(true);
     try {
       let res;
-      if (inputMode === 'custom') { res = await analyzeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config); }
-      else { res = await analyzeQuery(selectedQueryId, config); }
+      if (inputMode === 'custom') { res = await analyzeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model); }
+      else { res = await analyzeQuery(selectedQueryId, config.model); }
       setAnalyzeResult(res); setSelectedNums(new Set(res.parsed_suggestions.map((s) => s.number)));
     } catch (err) { setError(`Analysis failed: ${err.message}`); }
     finally { setAnalyzing(false); }
@@ -84,8 +84,8 @@ export default function App() {
     setError(''); setOptimizeResult(null); setOptimizing(true);
     try {
       let res;
-      if (inputMode === 'custom') { res = await optimizeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config, selectedTexts); }
-      else { res = await optimizeQuery(selectedQueryId, config, selectedTexts); }
+      if (inputMode === 'custom') { res = await optimizeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model, selectedTexts); }
+      else { res = await optimizeQuery(selectedQueryId, config.model, selectedTexts); }
       setOptimizeResult(res);
     } catch (err) { setError(`Optimization failed: ${err.message}`); }
     finally { setOptimizing(false); }
@@ -96,7 +96,7 @@ export default function App() {
     const results = {}; const selections = {};
     for (let i = 0; i < selectedIds.length; i++) {
       const qid = selectedIds[i]; setBatchProgress({ current: i + 1, total: selectedIds.length, currentId: qid });
-      try { const res = await analyzeQuery(qid, config); results[qid] = res; selections[qid] = new Set(res.parsed_suggestions.map((s) => s.number)); }
+      try { const res = await analyzeQuery(qid, config.model); results[qid] = res; selections[qid] = new Set(res.parsed_suggestions.map((s) => s.number)); }
       catch (err) { results[qid] = { error: err.message }; selections[qid] = new Set(); }
     }
     setBatchAnalyzeResults(results); setBatchSuggestionSelections(selections); setBatchProgress(null); setBatchPhase('review');
@@ -121,7 +121,7 @@ export default function App() {
       const sel = batchSuggestionSelections[qid] ?? new Set(); const analyzeRes = batchAnalyzeResults[qid];
       const selectedTexts = (analyzeRes?.parsed_suggestions ?? []).filter((s) => sel.has(s.number)).map((s) => s.full_text);
       if (selectedTexts.length === 0) { results[qid] = { error: 'No suggestions selected' }; continue; }
-      try { const res = await optimizeQuery(qid, config, selectedTexts); results[qid] = res; }
+      try { const res = await optimizeQuery(qid, config.model, selectedTexts); results[qid] = res; }
       catch (err) { results[qid] = { error: err.message }; }
     }
     setBatchOptimizeResults(results); setBatchProgress(null); setBatchPhase('results');
@@ -196,7 +196,7 @@ export default function App() {
   })();
 
   const hideSuggestApplyBtn = batchPhase === 'review' || batchPhase === 'optimizing';
-  const canAnalyze = config.apiKey.trim() && config.baseUrl.trim() && !analyzing && !optimizing;
+  const canAnalyze = !!config.model && !analyzing && !optimizing;
   const canOptimize = panelAnalyzeResult && panelSelectedNums.size > 0 && !analyzing && !optimizing;
 
   return (
@@ -246,7 +246,7 @@ export default function App() {
           onOptimizeAll={handleBatchOptimizeAll}
           onDownload={handleBatchDownload}
           onReset={handleBatchReset}
-          canRun={!!(config.apiKey.trim() && config.baseUrl.trim())}
+          canRun={!!config.model}
         />
       )}
 

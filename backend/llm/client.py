@@ -1,12 +1,12 @@
-"""OpenAI-compatible LLM HTTP client.
-
-Supports any endpoint that follows the OpenAI Chat Completions format, including standard OpenAI, Azure OpenAI, and routed endpoints such as Coforge TrustAI (quasarmarket.coforge.com).
-
-Auth: sends BOTH Authorization: Bearer AND X-API-KEY headers so the client works with any flavour of OpenAI-compatible gateway without user configuration.
-"""
+"""OpenAI-compatible LLM HTTP client with provider-aware auth."""
 
 import httpx
 from typing import Any, Dict, List
+
+
+def _provider(model: str) -> str:
+    return "anthropic" if model.startswith("claude") else "openai"
+
 
 class LLMClient:
     def __init__(self, api_key: str, base_url: str, model: str, timeout: float = 120.0):
@@ -14,25 +14,27 @@ class LLMClient:
         self.model = model
         self.timeout = timeout
         self.endpoint = self._resolve_endpoint(base_url)
-
-    # ------------------------------------------------------------
-    # Endpoint resolution
-    # ------------------------------------------------------------
+        self._provider = _provider(model)
 
     @staticmethod
     def _resolve_endpoint(base_url: str) -> str:
-        """Accept either:
-        - A full URL already ending with /chat/completions
-        - A base URL like https://api.openai.com/v1 (appends /chat/completions)
-        """
         url = base_url.rstrip("/")
         if url.endswith("/chat/completions"):
             return url
         return f"{url}/chat/completions"
 
-    # ------------------------------------------------------------
-    # Core chat method
-    # ------------------------------------------------------------
+    def _headers(self) -> Dict[str, str]:
+        if self._provider == "anthropic":
+            return {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+                "anthropic-version": "2023-06-01",
+            }
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+            "X-API-KEY": self.api_key,
+        }
 
     def chat(
         self,
@@ -40,11 +42,6 @@ class LLMClient:
         temperature: float = 0.2,
         max_tokens: int = 4096,
     ) -> Dict[str, Any]:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-            "X-API-KEY": self.api_key,
-        }
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -52,32 +49,23 @@ class LLMClient:
             "max_tokens": max_tokens,
         }
         with httpx.Client(timeout=self.timeout) as client:
-            response = client.post(self.endpoint, headers=headers, json=payload)
+            response = client.post(self.endpoint, headers=self._headers(), json=payload)
             response.raise_for_status()
             return response.json()
 
-    # ------------------------------------------------------------
-    # Response helpers
-    # ------------------------------------------------------------
-
     def extract_content(self, response: Dict[str, Any]) -> str:
+        # OpenAI-compat format
         try:
             return response["choices"][0]["message"]["content"]
+        except (KeyError, IndexError):
+            pass
+        # Anthropic native format fallback
+        try:
+            return response["content"][0]["text"]
         except (KeyError, IndexError) as exc:
             raise ValueError(f"Unexpected LLM response structure: {exc}\n{response}")
 
     def extract_usage(self, response: Dict[str, Any]) -> Dict[str, int]:
-        """Extract token counts from the response.
-
-        Different LLM gateways use different field names for the same data.
-        We try every known variant so routed endpoints (Coforge, Azure, etc.)
-        all work without extra configuration.
-
-        Variants tried (in priority order):
-            prompt -> prompt_tokens | input_tokens | promptTokens
-            completion -> completion_tokens | output_tokens | completionTokens
-            total -> total_tokens | totalTokens (or computed as sum)
-        """
         usage = response.get("usage", {})
 
         def _pick(d: dict, *keys: str, default: int = 0) -> int:
@@ -96,7 +84,6 @@ class LLMClient:
             "input_tokens",
             "promptTokens",
             "prompt_token_count",
-            "generated_tokens",
         )
         completion = _pick(
             usage,
@@ -105,12 +92,7 @@ class LLMClient:
             "completionTokens",
             "completion_token_count",
         )
-        total = _pick(
-            usage,
-            "total_tokens",
-            "totalTokens",
-            default=prompt + completion,
-        ) or (prompt + completion)
+        total = _pick(usage, "total_tokens", "totalTokens", default=prompt + completion) or (prompt + completion)
 
         return {
             "prompt_tokens": prompt,

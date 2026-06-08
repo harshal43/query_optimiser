@@ -2,16 +2,12 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List
 
-from ..models.schemas import (
-    LLMConfig,
-    QueryDetail,
-    QueryListResponse,
-)
+from ..models.schemas import QueryDetail, QueryListResponse
 from ..data.loader import get_query_ids, get_query, reload_cache, get_debug_info, load_from_upload, get_active_source
 from ..llm.client import LLMClient
 from ..agents.advisor import run_advisor_agent
 from ..agents.optimizer import run_optimizer_agent
-from ..config import SUPPORTED_MODELS
+from ..config import SUPPORTED_MODELS, get_llm_credentials
 
 router = APIRouter(prefix="/api", tags=["Query Optimization"])
 
@@ -21,22 +17,22 @@ router = APIRouter(prefix="/api", tags=["Query Optimization"])
 
 class AnalyzeRequest(BaseModel):
     query_id: str
-    llm_config: LLMConfig
+    model: str
 
 class OptimizeRequest(BaseModel):
     query_id: str
-    llm_config: LLMConfig
-    selected_suggestions: List[str]  # full_text of each user-selected suggestion
+    model: str
+    selected_suggestions: List[str]
 
 class AnalyzeCustomRequest(BaseModel):
     query_text: str
     credits: float = 0.0
-    llm_config: LLMConfig
+    model: str
 
 class OptimizeCustomRequest(BaseModel):
     query_text: str
     credits: float = 0.0
-    llm_config: LLMConfig
+    model: str
     selected_suggestions: List[str]
 
 # ------------------------------------------------------------
@@ -116,10 +112,10 @@ def list_models():
 @router.post("/analyze")
 def analyze_query(request: AnalyzeRequest):
     """Run Agent 1 only. Returns the original query text and a list of parsed, individually-addressable optimization suggestions."""
-    if request.llm_config.model not in SUPPORTED_MODELS:
+    if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
-            detail=f"Model '{request.llm_config.model}' not supported. Choose from: {SUPPORTED_MODELS}",
+            detail=f"Model '{request.model}' not supported. Choose from: {SUPPORTED_MODELS}",
         )
     try:
         query_data = get_query(request.query_id)
@@ -127,12 +123,11 @@ def analyze_query(request: AnalyzeRequest):
         raise HTTPException(status_code=404, detail=str(exc))
 
     try:
-        client = LLMClient(
-            api_key=request.llm_config.api_key,
-            base_url=request.llm_config.base_url,
-            model=request.llm_config.model,
-        )
+        creds = get_llm_credentials(request.model)
+        client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
         advisor_result = run_advisor_agent(client, query_data["query_text"])
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Advisor agent failed: {exc}")
 
@@ -151,10 +146,10 @@ def analyze_query(request: AnalyzeRequest):
 @router.post("/optimize")
 def optimize_query(request: OptimizeRequest):
     """Run Agent 2 using only the suggestions the user selected. Returns the optimized query, explanation, and credit comparison."""
-    if request.llm_config.model not in SUPPORTED_MODELS:
+    if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
-            detail=f"Model '{request.llm_config.model}' not supported. Choose from: {SUPPORTED_MODELS}",
+            detail=f"Model '{request.model}' not supported. Choose from: {SUPPORTED_MODELS}",
         )
     if not request.selected_suggestions:
         raise HTTPException(
@@ -168,17 +163,14 @@ def optimize_query(request: OptimizeRequest):
 
     original_query: str = query_data["query_text"]
     credits: float = query_data["credits"]
-
-    # Build the suggestions text from only the user-selected items
     selected_text = "\n\n".join(request.selected_suggestions)
 
-    client = LLMClient(
-        api_key=request.llm_config.api_key,
-        base_url=request.llm_config.base_url,
-        model=request.llm_config.model,
-    )
     try:
+        creds = get_llm_credentials(request.model)
+        client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
         optimizer_result = run_optimizer_agent(client, original_query, selected_text)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Optimizer agent failed: {exc}")
 
@@ -208,21 +200,20 @@ def optimize_query(request: OptimizeRequest):
 @router.post("/analyze-custom")
 def analyze_custom_query(request: AnalyzeCustomRequest):
     """Run Agent 1 on a user-supplied SQL query (no query catalogue needed)."""
-    if request.llm_config.model not in SUPPORTED_MODELS:
+    if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
-            detail=f"Model '{request.llm_config.model}' not supported. Choose from: {SUPPORTED_MODELS}",
+            detail=f"Model '{request.model}' not supported. Choose from: {SUPPORTED_MODELS}",
         )
     if not request.query_text.strip():
         raise HTTPException(status_code=400, detail="query_text must not be empty.")
 
-    client = LLMClient(
-        api_key=request.llm_config.api_key,
-        base_url=request.llm_config.base_url,
-        model=request.llm_config.model,
-    )
     try:
+        creds = get_llm_credentials(request.model)
+        client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
         advisor_result = run_advisor_agent(client, request.query_text)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Advisor agent failed: {exc}")
 
@@ -237,10 +228,10 @@ def analyze_custom_query(request: AnalyzeCustomRequest):
 @router.post("/optimize-custom")
 def optimize_custom_query(request: OptimizeCustomRequest):
     """Run Agent 2 on a user-supplied SQL query with selected suggestions."""
-    if request.llm_config.model not in SUPPORTED_MODELS:
+    if request.model not in SUPPORTED_MODELS:
         raise HTTPException(
             status_code=400,
-            detail=f"Model '{request.llm_config.model}' not supported. Choose from: {SUPPORTED_MODELS}",
+            detail=f"Model '{request.model}' not supported. Choose from: {SUPPORTED_MODELS}",
         )
     if not request.selected_suggestions:
         raise HTTPException(
@@ -253,13 +244,12 @@ def optimize_custom_query(request: OptimizeCustomRequest):
     selected_text = "\n\n".join(request.selected_suggestions)
     credits = request.credits
 
-    client = LLMClient(
-        api_key=request.llm_config.api_key,
-        base_url=request.llm_config.base_url,
-        model=request.llm_config.model,
-    )
     try:
+        creds = get_llm_credentials(request.model)
+        client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
         optimizer_result = run_optimizer_agent(client, request.query_text, selected_text)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Optimizer agent failed: {exc}")
 
