@@ -13,12 +13,17 @@ class LLMClient:
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
-        self.endpoint = self._resolve_endpoint(base_url)
         self._provider = _provider(model)
+        self.endpoint = self._resolve_endpoint(base_url, self._provider)
 
     @staticmethod
-    def _resolve_endpoint(base_url: str) -> str:
+    def _resolve_endpoint(base_url: str, provider: str) -> str:
         url = base_url.rstrip("/")
+        if provider == "anthropic":
+            if url.endswith("/messages"):
+                return url
+            return f"{url}/messages"
+        # OpenAI-compatible
         if url.endswith("/chat/completions"):
             return url
         return f"{url}/chat/completions"
@@ -33,6 +38,7 @@ class LLMClient:
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
+            "X-API-KEY": self.api_key,
         }
 
     def chat(
