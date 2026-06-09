@@ -16,7 +16,7 @@ import {
   connectSnowflake, checkSnowflakeStatus, disconnectSnowflake,
 } from './services/api.js';
 
-const DEFAULT_CONFIG = { model: 'claude-sonnet-4-5' };
+const DEFAULT_CONFIG = { model: 'claude-sonnet-4' };
 
 export default function App() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);

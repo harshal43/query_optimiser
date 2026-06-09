@@ -45,8 +45,8 @@ export default function ConfigPanel({
         <div className="field" style={{ width: '220px', flexShrink: 0 }}>
           <label>Model</label>
           <select value={config.model} onChange={(e) => onConfigChange('model', e.target.value)}>
-            <option value="claude-sonnet-4-5">Claude Sonnet 4</option>
-            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+            <option value="claude-sonnet-4">Claude Sonnet 4</option>
+            <option value="claude-sonnet-3-5">Claude 3.5 Sonnet</option>
             <option value="gpt-4o">GPT-4o</option>
             <option value="gpt-4o-mini">GPT-4o mini</option>
           </select>

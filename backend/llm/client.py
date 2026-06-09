@@ -27,13 +27,12 @@ class LLMClient:
         if self._provider == "anthropic":
             return {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
+                "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
             }
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
-            "X-API-KEY": self.api_key,
         }
 
     def chat(

@@ -9,8 +9,8 @@ load_dotenv()
 # ------------------------------------------------------------
 
 MODEL_DISPLAY_NAMES: dict[str, str] = {
-    "Claude Sonnet 4":   "claude-sonnet-4-5",
-    "Claude 3.5 Sonnet": "claude-3-5-sonnet-20241022",
+    "Claude Sonnet 4":   "claude-sonnet-4",
+    "Claude 3.5 Sonnet": "claude-sonnet-3-5",
     "GPT-4o":            "gpt-4o",
     "GPT-4o mini":       "gpt-4o-mini",
 }
@@ -19,12 +19,12 @@ SUPPORTED_MODELS: list[str] = list(MODEL_DISPLAY_NAMES.values())
 
 # Per-model env var names for API key and base URL
 _MODEL_ENV: dict[str, dict[str, str]] = {
-    "claude-sonnet-4-5": {
+    "claude-sonnet-4": {
         "api_key": "CLAUDE_SONNET_4_API_KEY",
         "base_url": "CLAUDE_SONNET_4_BASE_URL",
         "base_url_default": "https://api.anthropic.com/v1",
     },
-    "claude-3-5-sonnet-20241022": {
+    "claude-sonnet-3-5": {
         "api_key": "CLAUDE_SONNET_35_API_KEY",
         "base_url": "CLAUDE_SONNET_35_BASE_URL",
         "base_url_default": "https://api.anthropic.com/v1",
@@ -54,11 +54,11 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
         "prompt_cost_per_1k":      0.00015,
         "completion_cost_per_1k":  0.0006,
     },
-    "claude-sonnet-4-5": {
+    "claude-sonnet-4": {
         "prompt_cost_per_1k":      0.003,
         "completion_cost_per_1k":  0.015,
     },
-    "claude-3-5-sonnet-20241022": {
+    "claude-sonnet-3-5": {
         "prompt_cost_per_1k":      0.003,
         "completion_cost_per_1k":  0.015,
     },
