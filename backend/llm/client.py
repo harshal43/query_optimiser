@@ -19,25 +19,13 @@ class LLMClient:
     @staticmethod
     def _resolve_endpoint(base_url: str, provider: str) -> str:
         url = base_url.rstrip("/")
-        if provider == "anthropic":
-            if url.endswith("/messages"):
-                return url
-            return f"{url}/messages"
-        # OpenAI-compatible
         if url.endswith("/chat/completions"):
             return url
         return f"{url}/chat/completions"
 
     def _headers(self) -> Dict[str, str]:
-        if self._provider == "anthropic":
-            return {
-                "Content-Type": "application/json",
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-            }
         return {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
             "X-API-KEY": self.api_key,
         }
 
