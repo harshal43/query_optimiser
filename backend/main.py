@@ -7,6 +7,7 @@ Run with: uvicorn backend.main:app --reload --port 8000
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
+from .api.admin_routes import router as admin_router
 
 app = FastAPI(
     title="Query Optimization System",
@@ -31,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(admin_router)
 
 @app.get("/health")
 def health():

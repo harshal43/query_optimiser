@@ -32,6 +32,18 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .app-header h1 span.logo-icon { font-size: 24px; }
 .app-header .subtitle { font-size: 12px; color: var(--text-muted); font-weight: 400; }
 
+/* ---- Admin toggle button ---- */
+.btn-admin-toggle { display: flex; align-items: center; gap: 6px; background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border-2); border-radius: var(--radius); font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 7px 16px; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap; }
+.btn-admin-toggle:hover { background: var(--surface); color: var(--text); border-color: var(--accent-dim); }
+.btn-admin-toggle.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-dim); }
+
+/* ---- Admin panel wrapper ---- */
+.admin-panel-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0 0 20px; margin-bottom: 24px; overflow: hidden; }
+.admin-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.03em; }
+.admin-close-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: var(--radius); transition: color 0.15s, background 0.15s; line-height: 1; }
+.admin-close-btn:hover { color: var(--text); background: var(--border); }
+.admin-panel-wrapper > div:last-child { padding: 20px 24px 0; }
+
 /* ---- Section card ---- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; margin-bottom: 20px; }
 .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }

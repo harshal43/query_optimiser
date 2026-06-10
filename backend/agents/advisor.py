@@ -7,6 +7,8 @@ Output: Numbered optimization suggestions (raw text + parsed list)
 import re
 from ..llm.client import LLMClient
 from ..llm.cost import calculate_cost
+from ..data.admin_store import load_config
+from ..models.admin_config import AdminConfig
 
 # ------------------------------------------------------------
 # Prompt
@@ -39,19 +41,62 @@ Do NOT include any preamble, summary, or conclusion outside this structure.
 """
 
 # ------------------------------------------------------------
+# Admin config → prompt suffix
+# ------------------------------------------------------------
+
+_GOAL_LABELS = {
+    "lowest_credits": "Lowest Snowflake Credits",
+    "fastest_performance": "Fastest Query Performance",
+    "balanced": "Balanced Credits and Performance",
+}
+
+_AGG_LABELS = {
+    "conservative": "Conservative — minimal changes, preserve existing structure",
+    "moderate": "Moderate — standard optimizations",
+    "aggressive": "Aggressive — maximum optimization, restructure if needed",
+}
+
+
+def _build_advisor_suffix(config: AdminConfig) -> str:
+    lines: list[str] = []
+
+    r = config.advisor_rules
+    enabled: list[str] = []
+    if r.detect_select_star:
+        enabled.append("- Detect SELECT * usage and suggest selecting only needed columns.")
+    if r.detect_unnecessary_distinct:
+        enabled.append("- Detect unnecessary DISTINCT clauses.")
+    if r.detect_cartesian_joins:
+        enabled.append("- Detect Cartesian joins (missing or inadequate JOIN conditions).")
+    if r.suggest_partition_pruning:
+        enabled.append("- Suggest partition pruning via WHERE on partition columns.")
+    if r.suggest_clustering:
+        enabled.append("- Suggest clustering key optimisations.")
+    if r.suggest_removing_redundant_order_by:
+        enabled.append("- Suggest removing redundant ORDER BY in subqueries or CTEs.")
+    if r.suggest_avoiding_unnecessary_ctes:
+        enabled.append("- Suggest avoiding unnecessary CTEs that add overhead.")
+
+    if enabled:
+        lines.append("\nAdvisor Rules Enabled:")
+        lines.extend(enabled)
+
+    lines.append(f"\nOptimization Goal: {_GOAL_LABELS.get(config.optimization_goal, config.optimization_goal)}")
+    lines.append(f"Aggressiveness: {_AGG_LABELS.get(config.aggressiveness, config.aggressiveness)}")
+
+    if config.additional_llm_instructions.strip():
+        lines.append(f"\nAdditional Instructions:\n{config.additional_llm_instructions.strip()}")
+
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------
 # Suggestion parser
 # ------------------------------------------------------------
 
 def parse_suggestions(raw: str) -> list:
-    """Split the raw suggestion text into individual structured items.
-    Each item: { number, title, body, full_text }
-    """
-    # Strip "SUGGESTIONS:" header if present
     text = re.sub(r'(?i)^SUGGESTIONS:\s*', '', raw.strip())
-
-    # Split on lines that start a new numbered item (e.g. "1.", "2.", ...)
     parts = re.split(r'\n(?=\d+\.)', text)
-
     result = []
     for part in parts:
         part = part.strip()
@@ -60,24 +105,24 @@ def parse_suggestions(raw: str) -> list:
         m = re.match(r'^(\d+)\.\s*(.*?)\n(.*)', part, re.DOTALL)
         if not m:
             continue
-        number = int(m.group(1))
-        title = m.group(2).strip()
-        body = m.group(3).strip()
         result.append({
-            "number": number,
-            "title": title,
-            "body": body,
+            "number": int(m.group(1)),
+            "title": m.group(2).strip(),
+            "body": m.group(3).strip(),
             "full_text": part.strip(),
         })
     return result
 
+
 # ------------------------------------------------------------
-# Agent runner
+# Agent runners
 # ------------------------------------------------------------
 
 async def run_advisor_agent_async(client: LLMClient, query: str) -> dict:
+    config = load_config()
+    system = SYSTEM_PROMPT + _build_advisor_suffix(config)
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system},
         {"role": "user", "content": f"Analyze the following Snowflake SQL query and provide optimization suggestions.\n\n```sql\n{query}\n```"}
     ]
     response = await client.async_chat(messages, temperature=0.1)
@@ -93,26 +138,17 @@ async def run_advisor_agent_async(client: LLMClient, query: str) -> dict:
 
 
 def run_advisor_agent(client: LLMClient, query: str) -> dict:
-    """Run the Optimization Advisor agent.
-
-    Returns:
-        {
-            "suggestions_raw": str,
-            "parsed_suggestions": [ { number, title, body, full_text }, ... ],
-            "token_usage": { ... }
-        }
-    """
+    config = load_config()
+    system = SYSTEM_PROMPT + _build_advisor_suffix(config)
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system},
         {"role": "user", "content": f"Analyze the following Snowflake SQL query and provide optimization suggestions.\n\n```sql\n{query}\n```"}
     ]
-
     response = client.chat(messages, temperature=0.1)
     content = client.extract_content(response)
     usage = client.extract_usage(response)
     raw_usage = usage.pop("raw_usage", {})
     cost_info = calculate_cost(client.model, usage["prompt_tokens"], usage["completion_tokens"])
-
     return {
         "suggestions_raw": content.strip(),
         "parsed_suggestions": parse_suggestions(content),

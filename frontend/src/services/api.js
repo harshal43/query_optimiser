@@ -1,5 +1,7 @@
 const VITE_BASE = import.meta.env.VITE_API_BASE;
-const BASE = (VITE_BASE ? VITE_BASE.replace(/\/$/, '') : 'http://localhost:8000') + '/api';
+const ROOT = VITE_BASE ? VITE_BASE.replace(/\/$/, '') : 'http://localhost:8000';
+const BASE = ROOT + '/api';
+const ADMIN_BASE = ROOT + '/admin';
 
 async function handleResponse(res) {
   if (!res.ok) {
@@ -100,6 +102,20 @@ export async function batchAnalyzeQueries(queryIds, model) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query_ids: queryIds, model }),
+  });
+  return handleResponse(res);
+}
+
+export async function getAdminConfig() {
+  const res = await fetch(`${ADMIN_BASE}/config`);
+  return handleResponse(res);
+}
+
+export async function saveAdminConfig(config) {
+  const res = await fetch(`${ADMIN_BASE}/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
   });
   return handleResponse(res);
 }

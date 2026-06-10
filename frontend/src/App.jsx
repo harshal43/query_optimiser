@@ -10,6 +10,7 @@ import CostBreakdown from './components/CostBreakdown.jsx';
 import TokenBadge from './components/TokenBadge.jsx';
 import SnowflakeConnectModal from './components/SnowflakeConnectModal.jsx';
 import SnowflakeDashboard from './components/SnowflakeDashboard.jsx';
+import AdminPanel from './components/AdminPanel.jsx';
 import {
   fetchQueryIds, fetchQueryDetail, uploadExcel, analyzeQuery, optimizeQuery,
   analyzeCustomQuery, optimizeCustomQuery,
@@ -41,6 +42,7 @@ export default function App() {
   const [batchOptimizeResults, setBatchOptimizeResults] = useState({});
   const [batchViewQueryId, setBatchViewQueryId] = useState('');
   const [error, setError] = useState('');
+  const [showAdmin, setShowAdmin] = useState(false);
 
   // Snowflake connection state
   const [sfConnected, setSfConnected]       = useState(false);
@@ -323,7 +325,24 @@ export default function App() {
           Query Optimization System
           <span className="subtitle">Snowflake SQL - LLM-powered</span>
         </h1>
+        <button
+          className={`btn-admin-toggle${showAdmin ? ' active' : ''}`}
+          onClick={() => setShowAdmin((v) => !v)}
+          title="Admin Configuration"
+        >
+          &#x2699; Admin
+        </button>
       </header>
+
+      {showAdmin && (
+        <div className="admin-panel-wrapper">
+          <div className="admin-panel-header">
+            <span>Admin Configuration</span>
+            <button className="admin-close-btn" onClick={() => setShowAdmin(false)}>&#x2715;</button>
+          </div>
+          <AdminPanel />
+        </div>
+      )}
 
       <ConfigPanel
         config={config}
