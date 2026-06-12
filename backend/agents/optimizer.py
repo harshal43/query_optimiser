@@ -75,13 +75,41 @@ def _build_optimizer_suffix(config: AdminConfig) -> str:
         enabled.append("- Eliminate unnecessary DISTINCT clauses.")
     if r.simplify_nested_subqueries:
         enabled.append("- Simplify nested subqueries using JOINs or CTEs.")
+    if r.remove_unused_columns:
+        enabled.append("- Remove unused columns from SELECT lists and intermediate CTEs.")
+    if r.rewrite_correlated_subqueries:
+        enabled.append("- Rewrite correlated subqueries as JOINs or window functions where possible.")
 
     if enabled:
         lines.append("\nOptimization Rules:")
         lines.extend(enabled)
 
-    lines.append(f"\nOptimization Goal: {_GOAL_LABELS.get(config.optimization_goal, config.optimization_goal)}")
+    # Safety rules
+    s = config.safety_rules
+    safety: list[str] = []
+    if s.preserve_query_semantics:
+        safety.append("- Preserve exact query semantics — do not change what data is returned.")
+    if s.preserve_output_order:
+        safety.append("- Preserve output ordering — do not remove or reorder top-level ORDER BY.")
+    if safety:
+        lines.append("\nSafety Constraints (must be respected):")
+        lines.extend(safety)
+
+    # Goal + aggressiveness
+    lines.append(f"\nPrimary Objective: {_GOAL_LABELS.get(config.optimization_goal, config.optimization_goal)}")
     lines.append(f"Aggressiveness: {_AGG_LABELS.get(config.aggressiveness, config.aggressiveness)}")
+
+    # Change summary instruction
+    if config.output_rules.generate_change_summary:
+        lines.append(
+            "\nAfter CREDIT_SAVINGS_ESTIMATE, append a CHANGE_SUMMARY section exactly like this:\n"
+            "CHANGE_SUMMARY:\n"
+            "Changes Applied:\n"
+            "✓ [Each specific change made, one per line]\n\n"
+            "Expected Benefits:\n"
+            "- [Each expected benefit, one per line]\n\n"
+            "Do not fabricate exact percentage figures in the benefits."
+        )
 
     if config.additional_llm_instructions.strip():
         lines.append(f"\nAdditional Instructions:\n{config.additional_llm_instructions.strip()}")
@@ -108,6 +136,13 @@ def extract_explanation(content: str) -> str:
     if match:
         return match.group(1).strip()
     match = re.search(r'EXPLANATION:\s*(.*)', content, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
+def extract_change_summary(content: str) -> str:
+    match = re.search(r'CHANGE_SUMMARY:\s*(.*?)$', content, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip()
     return ""
@@ -149,6 +184,7 @@ async def run_optimizer_agent_async(
         "optimized_query": extract_sql(content),
         "explanation": extract_explanation(content),
         "credit_savings": extract_credit_savings(content),
+        "change_summary": extract_change_summary(content),
         "raw_response": content,
         "token_usage": {**cost_info, "raw_usage": raw_usage},
     }
@@ -174,6 +210,7 @@ def run_optimizer_agent(
         "optimized_query": extract_sql(content),
         "explanation": extract_explanation(content),
         "credit_savings": extract_credit_savings(content),
+        "change_summary": extract_change_summary(content),
         "raw_response": content,
         "token_usage": {**cost_info, "raw_usage": raw_usage},
     }

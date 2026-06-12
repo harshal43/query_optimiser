@@ -1,18 +1,13 @@
 import { useState, useEffect } from 'react';
 import { fetchSnowflakeQueries } from '../services/api.js';
 
-const TABS = [
-  { key: 'credits',   label: '💰 Top Spenders',      desc: 'Ranked by total credits consumed (last 30 days)' },
-  { key: 'frequency', label: '🔁 Repeat Offenders',  desc: 'Ranked by execution count (last 30 days)' },
-  { key: 'killer',    label: '☠️ Killers',           desc: 'Ranked by credits \xD7 frequency composite score' },
-  { key: 'all',       label: '📋 All History',       desc: 'Raw query history — last 30 days, most recent first' },
-];
+const CATEGORY = 'credits';
+const CATEGORY_DESC = 'Ranked by total credits consumed — last 30 days';
 
 const TH = { padding: '6px 10px', color: 'var(--text-muted)', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: 'right' };
 const TD = { padding: '8px 10px', color: 'var(--text)', verticalAlign: 'middle' };
 
 export default function SnowflakeDashboard({ account, onSelectQuery, onDisconnect, onCheckConnection }) {
-  const [category, setCategory] = useState('credits');
   const [rows, setRows]         = useState([]);
   const [loading, setLoading]   = useState(false);
   const [fetchErr, setFetchErr] = useState('');
@@ -23,11 +18,11 @@ export default function SnowflakeDashboard({ account, onSelectQuery, onDisconnec
     setRows([]);
     setFetchErr('');
     setLoading(true);
-    fetchSnowflakeQueries(category)
+    fetchSnowflakeQueries(CATEGORY)
       .then(data => setRows(data.rows))
       .catch(err  => setFetchErr(err.message))
       .finally(() => setLoading(false));
-  }, [category]);
+  }, []);
 
   const handleCheck = async () => {
     setChecking(true); setCheckMsg('');
@@ -42,9 +37,6 @@ export default function SnowflakeDashboard({ account, onSelectQuery, onDisconnec
     }
   };
 
-  const hasFrequency = rows.length > 0 && rows[0].frequency !== null;
-  const hasScore     = rows.length > 0 && rows[0].score !== null;
-  const activeTab    = TABS.find(t => t.key === category);
 
   return (
     <div className="card">
@@ -93,27 +85,8 @@ export default function SnowflakeDashboard({ account, onSelectQuery, onDisconnec
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid var(--border)', paddingBottom: 10, flexWrap: 'wrap' }}>
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setCategory(tab.key)}
-            style={{
-              padding: '6px 14px', fontSize: 12, borderRadius: 'var(--radius)',
-              border: '1px solid var(--border-2)',
-              background: category === tab.key ? 'var(--accent)' : 'var(--surface-2)',
-              color: category === tab.key ? '#fff' : 'var(--text)',
-              cursor: 'pointer', fontFamily: 'var(--sans)', whiteSpace: 'nowrap',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, fontFamily: 'var(--sans)' }}>
-        {activeTab?.desc} &mdash; click any row to load it for optimization
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, fontFamily: 'var(--sans)', borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+        💰 <strong>Most Credit Consuming Queries</strong> &mdash; {CATEGORY_DESC} &mdash; click any row to load for optimization
       </div>
 
       {/* Body */}
@@ -141,8 +114,6 @@ export default function SnowflakeDashboard({ account, onSelectQuery, onDisconnec
                 <th style={{ ...TH, textAlign: 'right', width: 36 }}>#</th>
                 <th style={{ ...TH, textAlign: 'left' }}>Query</th>
                 <th style={TH}>Credits</th>
-                {hasFrequency && <th style={TH}>Executions</th>}
-                {hasScore     && <th style={TH}>Score</th>}
                 <th style={TH}>Action</th>
               </tr>
             </thead>
@@ -163,16 +134,6 @@ export default function SnowflakeDashboard({ account, onSelectQuery, onDisconnec
                   <td style={{ ...TD, textAlign: 'right' }}>
                     {(row.credits || 0).toFixed(4)}
                   </td>
-                  {hasFrequency && (
-                    <td style={{ ...TD, textAlign: 'right' }}>
-                      {row.frequency?.toLocaleString() ?? '—'}
-                    </td>
-                  )}
-                  {hasScore && (
-                    <td style={{ ...TD, textAlign: 'right' }}>
-                      {row.score != null ? (row.score).toFixed(2) : '—'}
-                    </td>
-                  )}
                   <td style={{ ...TD, textAlign: 'center' }}>
                     <button
                       onClick={e => { e.stopPropagation(); onSelectQuery(row); }}

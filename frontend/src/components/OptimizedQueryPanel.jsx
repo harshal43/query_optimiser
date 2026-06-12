@@ -66,6 +66,14 @@ export default function OptimizedQueryPanel({ optimizerResult, loading, onRegene
               <div className="explanation-block">{optimizerResult.explanation}</div>
             </div>
           )}
+          {optimizerResult.change_summary && (
+            <div style={{ marginTop: 14 }}>
+              <div className="explanation-label" style={{ color: 'var(--success)' }}>Change Summary</div>
+              <div className="explanation-block" style={{ whiteSpace: 'pre-wrap' }}>
+                {optimizerResult.change_summary}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

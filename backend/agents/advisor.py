@@ -76,6 +76,16 @@ def _build_advisor_suffix(config: AdminConfig) -> str:
         enabled.append("- Suggest removing redundant ORDER BY in subqueries or CTEs.")
     if r.suggest_avoiding_unnecessary_ctes:
         enabled.append("- Suggest avoiding unnecessary CTEs that add overhead.")
+    if r.detect_redundant_joins:
+        enabled.append("- Detect redundant joins that produce no additional filtering or data.")
+    if r.detect_unused_ctes:
+        enabled.append("- Detect CTEs that are defined but never referenced.")
+    if r.suggest_column_pruning:
+        enabled.append("- Suggest pruning unused columns from SELECT lists and intermediate results.")
+    if r.suggest_filter_pushdown:
+        enabled.append("- Suggest pushing filter conditions (WHERE/HAVING) as early as possible.")
+    if r.suggest_result_cache_usage:
+        enabled.append("- Suggest leveraging Snowflake result cache for repeated identical queries.")
 
     if enabled:
         lines.append("\nAdvisor Rules Enabled:")

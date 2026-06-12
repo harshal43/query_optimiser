@@ -19,6 +19,23 @@
   --sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
+/* ================================================================ LIGHT THEME ================================================================ */
+body.light {
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --surface-2: #eaeef2;
+  --border: #d0d7de;
+  --border-2: #bbc2cb;
+  --text: #1f2328;
+  --text-muted: #57606a;
+  --text-dim: #6e7781;
+  --accent: #0969da;
+  --accent-dim: #dbeafe;
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --danger: #cf222e;
+}
+
 /* ================================================================ RESET & BASE ================================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; min-height: 100vh; }
@@ -36,6 +53,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 .btn-admin-toggle { display: flex; align-items: center; gap: 6px; background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border-2); border-radius: var(--radius); font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 7px 16px; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap; }
 .btn-admin-toggle:hover { background: var(--surface); color: var(--text); border-color: var(--accent-dim); }
 .btn-admin-toggle.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-dim); }
+
+/* ---- Theme toggle button ---- */
+.btn-theme-toggle { display: flex; align-items: center; gap: 6px; background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border-2); border-radius: var(--radius); font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 7px 14px; cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+.btn-theme-toggle:hover { background: var(--surface); color: var(--text); }
 
 /* ---- Admin panel wrapper ---- */
 .admin-panel-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0 0 20px; margin-bottom: 24px; overflow: hidden; }

@@ -43,6 +43,11 @@ export default function App() {
   const [batchViewQueryId, setBatchViewQueryId] = useState('');
   const [error, setError] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
+  const [lightTheme, setLightTheme] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.toggle('light', lightTheme);
+  }, [lightTheme]);
 
   // Snowflake connection state
   const [sfConnected, setSfConnected]       = useState(false);
@@ -325,13 +330,22 @@ export default function App() {
           Query Optimization System
           <span className="subtitle">Snowflake SQL - LLM-powered</span>
         </h1>
-        <button
-          className={`btn-admin-toggle${showAdmin ? ' active' : ''}`}
-          onClick={() => setShowAdmin((v) => !v)}
-          title="Admin Configuration"
-        >
-          &#x2699; Admin
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn-theme-toggle"
+            onClick={() => setLightTheme((v) => !v)}
+            title="Toggle light/dark theme"
+          >
+            {lightTheme ? '🌙 Dark' : '☀️ Light'}
+          </button>
+          <button
+            className={`btn-admin-toggle${showAdmin ? ' active' : ''}`}
+            onClick={() => setShowAdmin((v) => !v)}
+            title="Admin Configuration"
+          >
+            &#x2699; Admin
+          </button>
+        </div>
       </header>
 
       {showAdmin && (
