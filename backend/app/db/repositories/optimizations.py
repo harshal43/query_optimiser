@@ -122,7 +122,7 @@ async def update_variant_sql(optimization_id: str, variant_id: str, new_sql: str
             SET variants = (
                 SELECT jsonb_agg(
                     CASE WHEN v->>'id' = $2
-                    THEN v || jsonb_build_object('sql', $3, 'requires_human_edit', false, 'human_edited', true)
+                    THEN v || jsonb_build_object('sql', $3::text, 'requires_human_edit', false, 'human_edited', true)
                     ELSE v
                     END
                 )
