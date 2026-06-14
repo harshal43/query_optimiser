@@ -83,31 +83,38 @@ class OptimizerAgent(BaseAgent):
                 "technique_details": [TECHNIQUE_CATALOG[t] for t in applied_techniques[:2] if t in TECHNIQUE_CATALOG],
                 "rationale": "AI-generated rewrite applying identified optimization techniques",
                 "source": "llm",
+                "requires_human_edit": False,
             })
         else:
             variant1_sql = _apply_transforms(query_text, applied_techniques[:2])
             if variant1_sql != query_text:
+                has_placeholder, hint = _check_placeholder(variant1_sql, applied_techniques[:2])
                 variants.append({
                     "id": "v1",
-                    "label": "Optimized",
+                    "label": "Optimized (Edit Required)" if has_placeholder else "Optimized",
                     "sql": variant1_sql,
                     "techniques": applied_techniques[:2],
                     "technique_details": [TECHNIQUE_CATALOG[t] for t in applied_techniques[:2] if t in TECHNIQUE_CATALOG],
                     "rationale": "Applied column projection and subquery refactoring",
                     "source": "rules",
+                    "requires_human_edit": has_placeholder,
+                    "edit_hint": hint,
                 })
 
         if len(applied_techniques) > 2:
             variant2_sql = _apply_transforms(query_text, applied_techniques)
             if variant2_sql != query_text:
+                has_placeholder, hint = _check_placeholder(variant2_sql, applied_techniques)
                 variants.append({
                     "id": "v2",
-                    "label": "Aggressive Optimization",
+                    "label": "Aggressive Optimization (Edit Required)" if has_placeholder else "Aggressive Optimization",
                     "sql": variant2_sql,
                     "techniques": applied_techniques,
                     "technique_details": [TECHNIQUE_CATALOG[t] for t in applied_techniques if t in TECHNIQUE_CATALOG],
                     "rationale": "All applicable optimizations applied — validate correctness carefully",
                     "source": "rules",
+                    "requires_human_edit": has_placeholder,
+                    "edit_hint": hint,
                 })
 
         if not variants:
@@ -119,6 +126,7 @@ class OptimizerAgent(BaseAgent):
                 "technique_details": [],
                 "rationale": "No automated transforms applicable — manual review recommended",
                 "source": "rules",
+                "requires_human_edit": False,
             })
 
         recommended = variants[0]["id"] if variants else None
@@ -137,14 +145,37 @@ def _apply_transforms(sql: str, techniques: list[str]) -> str:
     return result
 
 
+_PLACEHOLDER_MARKERS = [
+    "/* specify required columns */",
+    "-- TODO:",
+    "-- Consider refactoring",
+]
+
+_PLACEHOLDER_HINTS: dict[str, str] = {
+    "replace_select_star": "Replace /* specify required columns */ with the actual column list (e.g. id, name, created_at)",
+    "add_partition_filter": "Replace the -- TODO comment with an actual WHERE clause partition filter",
+    "cte_subquery_refactor": "Refactor the subqueries into CTEs as suggested by the comment",
+}
+
+
+def _check_placeholder(sql: str, techniques: list[str]) -> tuple[bool, str]:
+    for marker in _PLACEHOLDER_MARKERS:
+        if marker in sql:
+            for t in techniques:
+                if t in _PLACEHOLDER_HINTS:
+                    return True, _PLACEHOLDER_HINTS[t]
+            return True, "Edit the SQL to complete the optimization before approving"
+    return False, ""
+
+
 def _replace_select_star(sql: str) -> str:
-    if re.match(r'^\s*SELECT\s+\*\s+FROM', sql, re.IGNORECASE):
-        return re.sub(
-            r'^(\s*SELECT)\s+\*(\s+FROM)',
-            r'\1 /* specify required columns */ *\2',
-            sql, flags=re.IGNORECASE
-        )
-    return sql
+    # Catches SELECT * and SELECT alias.* — replaces * with placeholder
+    return re.sub(
+        r'\bSELECT\s+(\w+\.)?\*\b',
+        lambda m: m.group(0).replace('*', '/* specify required columns */'),
+        sql,
+        flags=re.IGNORECASE,
+    )
 
 
 def _add_cte_comment(sql: str) -> str:

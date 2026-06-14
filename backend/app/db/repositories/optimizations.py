@@ -112,6 +112,29 @@ async def update_optimization_status(
         )
 
 
+async def update_variant_sql(optimization_id: str, variant_id: str, new_sql: str) -> None:
+    """Replace variant SQL and clear requires_human_edit flag in the JSONB array."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE optimizations
+            SET variants = (
+                SELECT jsonb_agg(
+                    CASE WHEN v->>'id' = $2
+                    THEN v || jsonb_build_object('sql', $3, 'requires_human_edit', false, 'human_edited', true)
+                    ELSE v
+                    END
+                )
+                FROM jsonb_array_elements(variants) AS v
+            ),
+            updated_at = NOW()
+            WHERE optimization_id = $1::uuid
+            """,
+            optimization_id, variant_id, new_sql,
+        )
+
+
 async def update_query_status(query_id: str, status: str) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:

@@ -41,6 +41,7 @@ class OptimizeRequest(BaseModel):
 
 class ApproveRequest(BaseModel):
     selected_variant: str | None = None
+    edited_sql: str | None = None  # human-provided SQL when variant.requires_human_edit is True
 
 
 class RejectRequest(BaseModel):

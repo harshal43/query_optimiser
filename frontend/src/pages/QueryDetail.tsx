@@ -225,6 +225,9 @@ export function QueryDetail() {
   useEffect(() => {
     if (!id) return
     setLoading(true)
+    setQuery(null)
+    setOptimization(null)
+    setError(null)
     Promise.all([
       api.get(`/queries/${id}`),
       api.get(`/optimizations?query_id=${id}&limit=1`),

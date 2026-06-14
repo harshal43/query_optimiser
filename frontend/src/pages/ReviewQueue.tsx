@@ -7,6 +7,9 @@ interface VariantDetail {
   label: string
   sql: string
   technique_details: Array<{ name: string; avg_credit_reduction_pct: number }>
+  requires_human_edit?: boolean
+  edit_hint?: string
+  human_edited?: boolean
 }
 
 interface OptimizationItem {
@@ -87,6 +90,8 @@ export function ReviewQueue() {
   const [rejectReason, setRejectReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [queryTexts, setQueryTexts] = useState<Record<string, string>>({})
+  const [editedSql, setEditedSql] = useState<string>('')
+  const [editError, setEditError] = useState<string | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -104,7 +109,11 @@ export function ReviewQueue() {
 
   useEffect(() => {
     if (!selected) return
-    setActiveVariant(selected.recommended_variant ?? 'v1')
+    const rec = selected.recommended_variant ?? 'v1'
+    setActiveVariant(rec)
+    setEditError(null)
+    const v = selected.variants.find(x => x.id === rec)
+    setEditedSql(v?.sql ?? '')
     if (!queryTexts[selected.query_id]) {
       api.get(`/queries/${selected.query_id}`)
         .then(r => setQueryTexts(t => ({ ...t, [selected.query_id]: r.data.query_text })))
@@ -112,14 +121,32 @@ export function ReviewQueue() {
     }
   }, [selected?.optimization_id])
 
+  useEffect(() => {
+    if (!selected) return
+    const v = selected.variants.find(x => x.id === activeVariant)
+    setEditedSql(v?.sql ?? '')
+    setEditError(null)
+  }, [activeVariant])
+
   const approve = async () => {
     if (!selected) return
+    const v = selected.variants.find(x => x.id === activeVariant)
+    if (v?.requires_human_edit && !editedSql.trim()) {
+      setEditError('Complete the SQL before approving — placeholder text must be replaced.')
+      return
+    }
     setActionLoading(true)
+    setEditError(null)
     try {
-      await api.post(`/optimizations/${selected.optimization_id}/approve`, { selected_variant: activeVariant })
+      const payload: Record<string, unknown> = { selected_variant: activeVariant }
+      if (v?.requires_human_edit) payload.edited_sql = editedSql.trim()
+      await api.post(`/optimizations/${selected.optimization_id}/approve`, payload)
       setItems(i => i.filter(x => x.optimization_id !== selected.optimization_id))
       setSelected(null)
       load()
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: { message?: string } } } })?.response?.data?.detail
+      setEditError(typeof detail === 'object' ? detail?.message ?? 'Approval failed' : 'Approval failed')
     } finally {
       setActionLoading(false)
     }
@@ -166,6 +193,7 @@ export function ReviewQueue() {
           const certain = item.diagnosis.certain?.length ?? 0
           const risk = item.validation_results.overall_risk_score ?? 0
           const isActive = selected?.optimization_id === item.optimization_id
+          const needsEdit = item.variants.some((v: VariantDetail) => v.requires_human_edit)
           return (
             <div key={item.optimization_id}
               onClick={() => setSelected(item)}
@@ -174,8 +202,13 @@ export function ReviewQueue() {
                 background: isActive ? 'var(--nav-active-bg)' : 'transparent',
                 borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
               }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: isActive ? 'var(--nav-active-text)' : 'var(--sidebar-text)', marginBottom: 3 }}>
-                {classification}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: isActive ? 'var(--nav-active-text)' : 'var(--sidebar-text)' }}>
+                  {classification}
+                </div>
+                {needsEdit && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', padding: '1px 5px', borderRadius: 3 }}>EDIT NEEDED</span>
+                )}
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                 {certain} certain finding{certain !== 1 ? 's' : ''} · Risk {risk}
@@ -287,16 +320,59 @@ export function ReviewQueue() {
           {variant && queryTexts[selected.query_id] && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>SQL Diff</div>
+
+              {/* Human edit required banner */}
+              {variant.requires_human_edit && (
+                <div style={{ marginBottom: 10, padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 3 }}>
+                    ⚠ Human Edit Required
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {variant.edit_hint ?? 'This variant contains placeholder SQL. Complete it before approving.'}
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>ORIGINAL</div>
                   <SQLBlock sql={queryTexts[selected.query_id]} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: 'var(--success)', marginBottom: 4 }}>OPTIMIZED ({variant.label})</div>
-                  <SQLBlock sql={variant.sql} style={{ borderColor: 'var(--success)' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, color: variant.requires_human_edit ? '#f59e0b' : 'var(--success)' }}>
+                      {variant.requires_human_edit ? '✎ EDIT TO COMPLETE' : 'OPTIMIZED'} ({variant.label})
+                    </div>
+                    {variant.human_edited && (
+                      <span style={{ fontSize: 9, color: 'var(--success)', background: 'rgba(34,197,94,0.1)', padding: '1px 5px', borderRadius: 3 }}>EDITED</span>
+                    )}
+                  </div>
+
+                  {variant.requires_human_edit ? (
+                    <textarea
+                      value={editedSql}
+                      onChange={e => { setEditedSql(e.target.value); setEditError(null) }}
+                      rows={12}
+                      spellCheck={false}
+                      style={{
+                        width: '100%', padding: '10px 12px', fontFamily: 'monospace', fontSize: 12,
+                        background: 'var(--input-bg)', color: 'var(--text-primary)',
+                        border: `1px solid ${editError ? 'var(--danger)' : 'rgba(245,158,11,0.4)'}`,
+                        borderRadius: 6, resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box',
+                      }}
+                    />
+                  ) : (
+                    <SQLBlock sql={variant.sql} style={{ borderColor: 'var(--success)' }} />
+                  )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Edit error */}
+          {editError && (
+            <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 5, fontSize: 12, color: 'var(--danger)' }}>
+              {editError}
             </div>
           )}
 
@@ -304,7 +380,7 @@ export function ReviewQueue() {
           <div style={{ display: 'flex', gap: 10, paddingTop: 8, paddingBottom: 24 }}>
             <button onClick={approve} disabled={actionLoading}
               style={{ padding: '9px 20px', borderRadius: 5, border: 'none', background: 'var(--success)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.6 : 1 }}>
-              Approve &amp; A/B Test
+              {variant?.requires_human_edit ? 'Submit Edit & Approve' : 'Approve & A/B Test'}
             </button>
             <button onClick={() => setRejectModal(true)} disabled={actionLoading}
               style={{ padding: '9px 20px', borderRadius: 5, border: '1px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontWeight: 600, fontSize: 13, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.6 : 1 }}>

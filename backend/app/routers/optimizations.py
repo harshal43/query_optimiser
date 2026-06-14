@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from app.db.repositories.queries import get_query_by_id
 from app.db.repositories.optimizations import (
     insert_optimization, get_optimization_by_id, list_optimizations,
-    update_optimization_status, update_query_status,
+    update_optimization_status, update_query_status, update_variant_sql,
 )
 from app.agents.graph import run_optimization_pipeline
 from app.models.optimization import OptimizationResponse, OptimizeRequest, ApproveRequest, RejectRequest
@@ -60,6 +60,24 @@ async def approve_optimization(optimization_id: str, body: ApproveRequest):
     row = await get_optimization_by_id(optimization_id)
     if not row:
         raise HTTPException(status_code=404, detail="Optimization not found")
+
+    # Find the selected variant and check if it requires human edit
+    selected_id = body.selected_variant or row.get("recommended_variant")
+    variants: list[dict] = row.get("variants") or []
+    selected_variant = next((v for v in variants if v.get("id") == selected_id), None)
+
+    if selected_variant and selected_variant.get("requires_human_edit"):
+        if not body.edited_sql or not body.edited_sql.strip():
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "HUMAN_EDIT_REQUIRED",
+                    "message": "This variant contains placeholder SQL that must be completed before approval.",
+                    "hint": selected_variant.get("edit_hint", "Edit the SQL before approving."),
+                },
+            )
+        await update_variant_sql(optimization_id, selected_id, body.edited_sql.strip())
+
     await update_optimization_status(optimization_id, "approved", body.selected_variant)
     await update_query_status(row["query_id"], "approved")
     from app.db.repositories.audit_log import insert_audit_log
