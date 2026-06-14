@@ -2,13 +2,23 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { SQLBlock } from '../utils/sqlHighlight'
 
+interface MissingField {
+  field_id: string
+  label: string
+  location: string
+  prompt: string
+  suggestion: string
+  placeholder_text: string
+  required: boolean
+}
+
 interface VariantDetail {
   id: string
   label: string
   sql: string
   technique_details: Array<{ name: string; avg_credit_reduction_pct: number }>
   requires_human_edit?: boolean
-  edit_hint?: string
+  missing_fields?: MissingField[]
   human_edited?: boolean
 }
 
@@ -90,7 +100,7 @@ export function ReviewQueue() {
   const [rejectReason, setRejectReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [queryTexts, setQueryTexts] = useState<Record<string, string>>({})
-  const [editedSql, setEditedSql] = useState<string>('')
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [editError, setEditError] = useState<string | null>(null)
 
   const load = () => {
@@ -112,8 +122,7 @@ export function ReviewQueue() {
     const rec = selected.recommended_variant ?? 'v1'
     setActiveVariant(rec)
     setEditError(null)
-    const v = selected.variants.find(x => x.id === rec)
-    setEditedSql(v?.sql ?? '')
+    setFieldValues({})
     if (!queryTexts[selected.query_id]) {
       api.get(`/queries/${selected.query_id}`)
         .then(r => setQueryTexts(t => ({ ...t, [selected.query_id]: r.data.query_text })))
@@ -122,31 +131,33 @@ export function ReviewQueue() {
   }, [selected?.optimization_id])
 
   useEffect(() => {
-    if (!selected) return
-    const v = selected.variants.find(x => x.id === activeVariant)
-    setEditedSql(v?.sql ?? '')
+    setFieldValues({})
     setEditError(null)
   }, [activeVariant])
 
   const approve = async () => {
     if (!selected) return
     const v = selected.variants.find(x => x.id === activeVariant)
-    if (v?.requires_human_edit && !editedSql.trim()) {
-      setEditError('Complete the SQL before approving — placeholder text must be replaced.')
+    const requiredFields = v?.missing_fields?.filter(f => f.required) ?? []
+    const missingRequired = requiredFields.filter(f => !fieldValues[f.field_id]?.trim())
+    if (v?.requires_human_edit && missingRequired.length > 0) {
+      setEditError(`Fill in required fields: ${missingRequired.map(f => f.label).join(', ')}`)
       return
     }
     setActionLoading(true)
     setEditError(null)
     try {
       const payload: Record<string, unknown> = { selected_variant: activeVariant }
-      if (v?.requires_human_edit) payload.edited_sql = editedSql.trim()
+      if (v?.requires_human_edit && Object.keys(fieldValues).length > 0) {
+        payload.field_values = fieldValues
+      }
       await api.post(`/optimizations/${selected.optimization_id}/approve`, payload)
       setItems(i => i.filter(x => x.optimization_id !== selected.optimization_id))
       setSelected(null)
       load()
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: { message?: string } } } })?.response?.data?.detail
-      setEditError(typeof detail === 'object' ? detail?.message ?? 'Approval failed' : 'Approval failed')
+      setEditError(typeof detail === 'object' ? (detail?.message ?? 'Approval failed') : 'Approval failed')
     } finally {
       setActionLoading(false)
     }
@@ -316,23 +327,53 @@ export function ReviewQueue() {
             </div>
           ) : null}
 
+          {/* Human input fields */}
+          {variant?.requires_human_edit && (variant.missing_fields?.length ?? 0) > 0 && (
+            <div style={{ marginBottom: 14, padding: '14px 16px', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 12 }}>
+                ⚠ Human Input Required — {variant.missing_fields!.filter(f => f.required).length} required field{variant.missing_fields!.filter(f => f.required).length !== 1 ? 's' : ''}
+              </div>
+              {variant.missing_fields!.map(field => (
+                <div key={field.field_id} style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{field.label}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '1px 6px', borderRadius: 3 }}>{field.location}</span>
+                    {field.required && <span style={{ fontSize: 10, color: 'var(--danger)' }}>required</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>{field.prompt}</div>
+                  {field.suggestion && (
+                    <div style={{ fontSize: 11, color: '#6366f1', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ opacity: 0.7 }}>✦ Suggestion:</span>
+                      <code style={{ fontSize: 11 }}>{field.suggestion}</code>
+                      <button
+                        onClick={() => setFieldValues(fv => ({ ...fv, [field.field_id]: field.suggestion }))}
+                        style={{ fontSize: 10, color: '#6366f1', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 3, padding: '1px 6px', cursor: 'pointer' }}
+                      >
+                        Use
+                      </button>
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={fieldValues[field.field_id] ?? ''}
+                    onChange={e => { setFieldValues(fv => ({ ...fv, [field.field_id]: e.target.value })); setEditError(null) }}
+                    placeholder={field.suggestion || `Enter ${field.label.toLowerCase()}…`}
+                    style={{
+                      width: '100%', padding: '7px 10px', fontFamily: 'monospace', fontSize: 12,
+                      background: 'var(--input-bg)', color: 'var(--text-primary)',
+                      border: `1px solid ${editError && field.required && !fieldValues[field.field_id]?.trim() ? 'var(--danger)' : 'var(--input-border)'}`,
+                      borderRadius: 5, boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* SQL diff */}
           {variant && queryTexts[selected.query_id] && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 }}>SQL Diff</div>
-
-              {/* Human edit required banner */}
-              {variant.requires_human_edit && (
-                <div style={{ marginBottom: 10, padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginBottom: 3 }}>
-                    ⚠ Human Edit Required
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {variant.edit_hint ?? 'This variant contains placeholder SQL. Complete it before approving.'}
-                  </div>
-                </div>
-              )}
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>ORIGINAL</div>
@@ -341,29 +382,13 @@ export function ReviewQueue() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                     <div style={{ fontSize: 10, color: variant.requires_human_edit ? '#f59e0b' : 'var(--success)' }}>
-                      {variant.requires_human_edit ? '✎ EDIT TO COMPLETE' : 'OPTIMIZED'} ({variant.label})
+                      {variant.requires_human_edit ? '✎ PENDING INPUT' : 'OPTIMIZED'} ({variant.label})
                     </div>
                     {variant.human_edited && (
                       <span style={{ fontSize: 9, color: 'var(--success)', background: 'rgba(34,197,94,0.1)', padding: '1px 5px', borderRadius: 3 }}>EDITED</span>
                     )}
                   </div>
-
-                  {variant.requires_human_edit ? (
-                    <textarea
-                      value={editedSql}
-                      onChange={e => { setEditedSql(e.target.value); setEditError(null) }}
-                      rows={12}
-                      spellCheck={false}
-                      style={{
-                        width: '100%', padding: '10px 12px', fontFamily: 'monospace', fontSize: 12,
-                        background: 'var(--input-bg)', color: 'var(--text-primary)',
-                        border: `1px solid ${editError ? 'var(--danger)' : 'rgba(245,158,11,0.4)'}`,
-                        borderRadius: 6, resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box',
-                      }}
-                    />
-                  ) : (
-                    <SQLBlock sql={variant.sql} style={{ borderColor: 'var(--success)' }} />
-                  )}
+                  <SQLBlock sql={variant.sql} style={{ borderColor: variant.requires_human_edit ? 'rgba(245,158,11,0.4)' : 'var(--success)' }} />
                 </div>
               </div>
             </div>
@@ -380,7 +405,7 @@ export function ReviewQueue() {
           <div style={{ display: 'flex', gap: 10, paddingTop: 8, paddingBottom: 24 }}>
             <button onClick={approve} disabled={actionLoading}
               style={{ padding: '9px 20px', borderRadius: 5, border: 'none', background: 'var(--success)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.6 : 1 }}>
-              {variant?.requires_human_edit ? 'Submit Edit & Approve' : 'Approve & A/B Test'}
+              {variant?.requires_human_edit ? 'Submit & Approve' : 'Approve & A/B Test'}
             </button>
             <button onClick={() => setRejectModal(true)} disabled={actionLoading}
               style={{ padding: '9px 20px', borderRadius: 5, border: '1px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontWeight: 600, fontSize: 13, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.6 : 1 }}>

@@ -67,16 +67,35 @@ async def approve_optimization(optimization_id: str, body: ApproveRequest):
     selected_variant = next((v for v in variants if v.get("id") == selected_id), None)
 
     if selected_variant and selected_variant.get("requires_human_edit"):
-        if not body.edited_sql or not body.edited_sql.strip():
+        missing_fields: list[dict] = selected_variant.get("missing_fields") or []
+        required_fields = [f for f in missing_fields if f.get("required")]
+
+        # Resolve final SQL from field_values or raw edited_sql
+        final_sql: str | None = None
+        if body.field_values:
+            from app.agents.completeness_checker import reconstruct_sql
+            final_sql = reconstruct_sql(
+                selected_variant["sql"],
+                body.field_values,
+                missing_fields,
+            )
+        elif body.edited_sql and body.edited_sql.strip():
+            final_sql = body.edited_sql.strip()
+
+        if not final_sql and required_fields:
             raise HTTPException(
                 status_code=422,
                 detail={
-                    "code": "HUMAN_EDIT_REQUIRED",
-                    "message": "This variant contains placeholder SQL that must be completed before approval.",
-                    "hint": selected_variant.get("edit_hint", "Edit the SQL before approving."),
+                    "code": "HUMAN_INPUT_REQUIRED",
+                    "message": f"{len(required_fields)} field(s) require human input before approval.",
+                    "missing_fields": [
+                        {"field_id": f["field_id"], "label": f["label"], "prompt": f["prompt"]}
+                        for f in required_fields
+                    ],
                 },
             )
-        await update_variant_sql(optimization_id, selected_id, body.edited_sql.strip())
+        if final_sql:
+            await update_variant_sql(optimization_id, selected_id, final_sql)
 
     await update_optimization_status(optimization_id, "approved", body.selected_variant)
     await update_query_status(row["query_id"], "approved")

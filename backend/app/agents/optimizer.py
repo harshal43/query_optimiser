@@ -5,6 +5,7 @@ from typing import Any
 
 from app.agents.base import BaseAgent
 from app.agents.llm import llm_call
+from app.agents.completeness_checker import detect_missing_fields
 
 logger = logging.getLogger(__name__)
 
@@ -88,33 +89,33 @@ class OptimizerAgent(BaseAgent):
         else:
             variant1_sql = _apply_transforms(query_text, applied_techniques[:2])
             if variant1_sql != query_text:
-                has_placeholder, hint = _check_placeholder(variant1_sql, applied_techniques[:2])
+                missing = await detect_missing_fields(query_text, variant1_sql)
                 variants.append({
                     "id": "v1",
-                    "label": "Optimized (Edit Required)" if has_placeholder else "Optimized",
+                    "label": "Optimized (Input Required)" if missing else "Optimized",
                     "sql": variant1_sql,
                     "techniques": applied_techniques[:2],
                     "technique_details": [TECHNIQUE_CATALOG[t] for t in applied_techniques[:2] if t in TECHNIQUE_CATALOG],
                     "rationale": "Applied column projection and subquery refactoring",
                     "source": "rules",
-                    "requires_human_edit": has_placeholder,
-                    "edit_hint": hint,
+                    "requires_human_edit": bool(missing),
+                    "missing_fields": missing,
                 })
 
         if len(applied_techniques) > 2:
             variant2_sql = _apply_transforms(query_text, applied_techniques)
             if variant2_sql != query_text:
-                has_placeholder, hint = _check_placeholder(variant2_sql, applied_techniques)
+                missing = await detect_missing_fields(query_text, variant2_sql)
                 variants.append({
                     "id": "v2",
-                    "label": "Aggressive Optimization (Edit Required)" if has_placeholder else "Aggressive Optimization",
+                    "label": "Aggressive Optimization (Input Required)" if missing else "Aggressive Optimization",
                     "sql": variant2_sql,
                     "techniques": applied_techniques,
                     "technique_details": [TECHNIQUE_CATALOG[t] for t in applied_techniques if t in TECHNIQUE_CATALOG],
                     "rationale": "All applicable optimizations applied — validate correctness carefully",
                     "source": "rules",
-                    "requires_human_edit": has_placeholder,
-                    "edit_hint": hint,
+                    "requires_human_edit": bool(missing),
+                    "missing_fields": missing,
                 })
 
         if not variants:
@@ -145,34 +146,13 @@ def _apply_transforms(sql: str, techniques: list[str]) -> str:
     return result
 
 
-_PLACEHOLDER_MARKERS = [
-    "/* specify required columns */",
-    "-- TODO:",
-    "-- Consider refactoring",
-]
-
-_PLACEHOLDER_HINTS: dict[str, str] = {
-    "replace_select_star": "Replace /* specify required columns */ with the actual column list (e.g. id, name, created_at)",
-    "add_partition_filter": "Replace the -- TODO comment with an actual WHERE clause partition filter",
-    "cte_subquery_refactor": "Refactor the subqueries into CTEs as suggested by the comment",
-}
-
-
-def _check_placeholder(sql: str, techniques: list[str]) -> tuple[bool, str]:
-    for marker in _PLACEHOLDER_MARKERS:
-        if marker in sql:
-            for t in techniques:
-                if t in _PLACEHOLDER_HINTS:
-                    return True, _PLACEHOLDER_HINTS[t]
-            return True, "Edit the SQL to complete the optimization before approving"
-    return False, ""
-
 
 def _replace_select_star(sql: str) -> str:
-    # Catches SELECT * and SELECT alias.* — replaces * with placeholder
+    # Catches SELECT * and SELECT alias.* — drops alias, inserts placeholder
+    # No \b after * because * is non-word char; use lookahead for safe boundary
     return re.sub(
-        r'\bSELECT\s+(\w+\.)?\*\b',
-        lambda m: m.group(0).replace('*', '/* specify required columns */'),
+        r'(\bSELECT\s+)(?:\w+\.)?(\*)(?=\s|,|$)',
+        r'\1/* specify required columns */',
         sql,
         flags=re.IGNORECASE,
     )
