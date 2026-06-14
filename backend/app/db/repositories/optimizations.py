@@ -55,10 +55,21 @@ async def get_optimization_by_id(optimization_id: str) -> dict[str, Any] | None:
     return d
 
 
-async def list_optimizations(status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+async def list_optimizations(
+    status: str | None = None,
+    query_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
     pool = get_pool()
-    where = "WHERE status = $1" if status else ""
-    params = [status] if status else []
+    conditions = []
+    params: list[Any] = []
+    if status:
+        params.append(status)
+        conditions.append(f"status = ${len(params)}")
+    if query_id:
+        params.append(query_id)
+        conditions.append(f"query_id = ${len(params)}::uuid")
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""

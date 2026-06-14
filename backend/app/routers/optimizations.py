@@ -42,8 +42,8 @@ async def create_optimization(body: OptimizeRequest):
 
 
 @router.get("")
-async def list_optimizations_endpoint(status: str | None = None):
-    items = await list_optimizations(status=status)
+async def list_optimizations_endpoint(status: str | None = None, query_id: str | None = None):
+    items = await list_optimizations(status=status, query_id=query_id)
     return {"items": items, "total": len(items)}
 
 
