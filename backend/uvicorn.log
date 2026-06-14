@@ -1,0 +1,245 @@
+{"timestamp": "2026-06-14T06:13:49.314233+00:00", "level": "INFO", "logger": "app.services.snowflake", "message": "Snowflake not configured \u2014 using seed data"}
+{"timestamp": "2026-06-14T06:13:49.648705+00:00", "level": "INFO", "logger": "app.services.polling", "message": "Polling cycle complete"}
+{"timestamp": "2026-06-14T06:18:49.762657+00:00", "level": "INFO", "logger": "app.services.snowflake", "message": "Snowflake not configured \u2014 using seed data"}
+{"timestamp": "2026-06-14T06:18:50.631259+00:00", "level": "INFO", "logger": "app.services.polling", "message": "Polling cycle complete"}
+INFO:     127.0.0.1:51223 - "GET /api/queries?severity=critical&limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51223 - "POST /api/optimizations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51223 - "GET /api/optimizations/9535241a-9373-4b89-b743-6c08631deb13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51225 - "POST /api/optimizations/9535241a-9373-4b89-b743-6c08631deb13/approve HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51225 - "GET /api/optimizations?status=pending_review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51225 - "GET /api/health/agents HTTP/1.1" 200 OK
+{"timestamp": "2026-06-14T06:23:50.713809+00:00", "level": "INFO", "logger": "app.services.snowflake", "message": "Snowflake not configured \u2014 using seed data"}
+{"timestamp": "2026-06-14T06:23:50.732332+00:00", "level": "INFO", "logger": "app.services.polling", "message": "Polling cycle complete"}
+INFO:     127.0.0.1:51371 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51373 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51375 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51379 - "GET /api/optimizations?status=pending_review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51382 - "GET /api/optimizations?status=pending_review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51385 - "GET /api/queries/326a709b-5d62-4071-b24e-977a29de084f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51390 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51399 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51405 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51412 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51421 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51422 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51428 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51433 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51440 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51446 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51454 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51453 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51461 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51469 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51476 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51487 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51498 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51501 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51507 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51512 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51515 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51518 - "GET /api/optimizations?status=pending_review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51521 - "GET /api/optimizations?status=pending_review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51524 - "GET /api/queries/326a709b-5d62-4071-b24e-977a29de084f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51528 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51533 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51538 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51543 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51548 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51551 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51555 - "GET /api/optimizations?status=pending_review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51558 - "GET /api/optimizations?status=pending_review HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51561 - "GET /api/queries/326a709b-5d62-4071-b24e-977a29de084f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51566 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51571 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51578 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51583 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51586 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51589 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51597 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51603 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51606 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51611 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51616 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51622 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51627 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51632 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51636 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51645 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51650 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51657 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51662 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51667 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51670 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51673 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51676 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51679 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51684 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51687 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51690 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51693 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51696 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51699 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51702 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51707 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51710 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51722 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51727 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51731 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51735 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+{"timestamp": "2026-06-14T06:28:50.856950+00:00", "level": "INFO", "logger": "app.services.snowflake", "message": "Snowflake not configured \u2014 using seed data"}
+{"timestamp": "2026-06-14T06:28:50.870062+00:00", "level": "INFO", "logger": "app.services.polling", "message": "Polling cycle complete"}
+INFO:     127.0.0.1:51747 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51752 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51757 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51763 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51767 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51772 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51779 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51787 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51793 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51799 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51803 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51809 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51812 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51815 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51818 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51821 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51824 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51827 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51831 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51836 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51841 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51844 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51847 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51850 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51857 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51860 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51865 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51870 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51873 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51876 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51879 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51884 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51889 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51892 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51895 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51898 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51901 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51905 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51908 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51911 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51914 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51922 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51926 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51931 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51938 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51942 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51947 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51952 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51955 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51960 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51963 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51966 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51969 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51972 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52008 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52043 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52056 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52062 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52070 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52076 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+{"timestamp": "2026-06-14T06:33:50.982337+00:00", "level": "INFO", "logger": "app.services.snowflake", "message": "Snowflake not configured \u2014 using seed data"}
+{"timestamp": "2026-06-14T06:33:50.997185+00:00", "level": "INFO", "logger": "app.services.polling", "message": "Polling cycle complete"}
+INFO:     127.0.0.1:52082 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52095 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52098 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52101 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52104 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52108 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52115 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52121 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52125 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52132 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52191 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52205 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52207 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52213 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52210 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52216 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52277 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52281 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52279 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52288 - "GET /api/queries?limit=50&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52284 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52293 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52298 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52301 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52305 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52310 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52311 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52316 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52320 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52333 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52337 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52348 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52351 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52356 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52362 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52368 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52372 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52377 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52382 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52386 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52391 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52396 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52401 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52408 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52413 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52421 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52420 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52424 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52427 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52431 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52434 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52437 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52440 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52443 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52446 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52452 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52456 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52459 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52464 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52467 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52470 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52473 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52476 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52480 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52485 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52489 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52492 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52495 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52498 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52503 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52506 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52510 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+{"timestamp": "2026-06-14T06:38:51.105389+00:00", "level": "INFO", "logger": "app.services.snowflake", "message": "Snowflake not configured \u2014 using seed data"}
+{"timestamp": "2026-06-14T06:38:51.127458+00:00", "level": "INFO", "logger": "app.services.polling", "message": "Polling cycle complete"}
+INFO:     127.0.0.1:52515 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52518 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52521 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52531 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52534 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52537 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52541 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52548 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52551 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52554 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52562 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52567 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52588 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52597 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52601 - "GET /api/health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52606 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52614 - "GET /api/optimize/stream HTTP/1.1" 404 Not Found
