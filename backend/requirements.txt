@@ -6,3 +6,6 @@ pandas
 openpyxl
 numpy
 snowflake-connector-python
+dotenv
+python-multipart
+pytest

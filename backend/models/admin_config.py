@@ -94,7 +94,7 @@ def _aggressive() -> TierPreset:
     )
 
 
-def _default_tier_configs() -> dict:
+def _default_tier_configs() -> dict[str, TierPreset]:
     return {
         "conservative": _conservative(),
         "balanced": _balanced(),
@@ -105,11 +105,11 @@ def _default_tier_configs() -> dict:
 class AdminConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
-    tier_configs: dict[str, TierPreset] = None  # type: ignore
+    tier_configs: dict[str, TierPreset] | None = None
     output_rules: OutputRules = OutputRules()
     default_tier: str = "balanced"
     additional_llm_instructions: str = ""
 
     def model_post_init(self, __context):
-        if self.tier_configs is None:
+        if not self.tier_configs:
             object.__setattr__(self, "tier_configs", _default_tier_configs())
