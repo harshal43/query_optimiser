@@ -46,6 +46,8 @@ _TIER_LABELS = {
 
 def _build_optimizer_suffix(config: AdminConfig, strategy: str) -> str:
     tier = strategy if strategy in config.tier_configs else config.default_tier
+    if tier not in config.tier_configs:
+        tier = next(iter(config.tier_configs))
     r = config.tier_configs[tier].optimizer_rules
     lines: list[str] = []
 

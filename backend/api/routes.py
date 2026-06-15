@@ -159,7 +159,8 @@ def qualify_strategy(request: QualifyRequest):
         )
     config = load_config()
     tier = _QUALIFY_MATRIX[(request.priority, request.tolerance)]
-    preset = config.tier_configs.get(tier, config.tier_configs[config.default_tier])
+    _fallback = config.tier_configs.get(config.default_tier) or next(iter(config.tier_configs.values()))
+    preset = config.tier_configs.get(tier, _fallback)
     rules_preview = {
         "advisor_rules": preset.advisor_rules.model_dump(),
         "optimizer_rules": preset.optimizer_rules.model_dump(),
