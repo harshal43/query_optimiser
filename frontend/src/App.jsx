@@ -11,6 +11,7 @@ import TokenBadge from './components/TokenBadge.jsx';
 import SnowflakeConnectModal from './components/SnowflakeConnectModal.jsx';
 import SnowflakeDashboard from './components/SnowflakeDashboard.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
+import HitlPanel from './components/HitlPanel.jsx';
 import {
   fetchQueryIds, fetchQueryDetail, uploadExcel, analyzeQuery, optimizeQuery,
   analyzeCustomQuery, optimizeCustomQuery,
@@ -44,6 +45,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
   const [lightTheme, setLightTheme] = useState(false);
+  const [confirmedTier, setConfirmedTier] = useState(null);
 
   useEffect(() => {
     document.body.classList.toggle('light', lightTheme);
@@ -83,12 +85,12 @@ export default function App() {
     setError(''); setAnalyzeResult(null); setSelectedNums(new Set()); setOptimizeResult(null); setAnalyzing(true);
     try {
       let res;
-      if (inputMode === 'custom') { res = await analyzeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model); }
-      else { res = await analyzeQuery(selectedQueryId, config.model); }
+      if (inputMode === 'custom') { res = await analyzeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model, confirmedTier); }
+      else { res = await analyzeQuery(selectedQueryId, config.model, confirmedTier); }
       setAnalyzeResult(res); setSelectedNums(new Set(res.parsed_suggestions.map((s) => s.number)));
     } catch (err) { setError(`Analysis failed: ${err.message}`); }
     finally { setAnalyzing(false); }
-  }, [selectedQueryId, config, inputMode, customQueryText, customCredits]);
+  }, [selectedQueryId, config, inputMode, customQueryText, customCredits, confirmedTier]);
 
   const handleToggleSuggestion = useCallback((number) => {
     setSelectedNums((prev) => { const next = new Set(prev); next.has(number) ? next.delete(number) : next.add(number); return next; });
@@ -101,12 +103,12 @@ export default function App() {
     setError(''); setOptimizeResult(null); setOptimizing(true);
     try {
       let res;
-      if (inputMode === 'custom') { res = await optimizeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model, selectedTexts); }
-      else { res = await optimizeQuery(selectedQueryId, config.model, selectedTexts); }
+      if (inputMode === 'custom') { res = await optimizeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model, selectedTexts, confirmedTier); }
+      else { res = await optimizeQuery(selectedQueryId, config.model, selectedTexts, confirmedTier); }
       setOptimizeResult(res);
     } catch (err) { setError(`Optimization failed: ${err.message}`); }
     finally { setOptimizing(false); }
-  }, [analyzeResult, selectedNums, selectedQueryId, config, inputMode, customQueryText, customCredits]);
+  }, [analyzeResult, selectedNums, selectedQueryId, config, inputMode, customQueryText, customCredits, confirmedTier]);
 
   const handleBatchAnalyzeAll = useCallback(async (selectedIds) => {
     setBatchPhase('analyzing');
@@ -310,7 +312,8 @@ export default function App() {
   const hideSuggestApplyBtn = batchPhase === 'review' || batchPhase === 'optimizing'
     || (!isBatchActive && !!optimizeResult);
   const canAnalyze = !!config.model && !analyzing && !optimizing && inputMode !== 'snowflake'
-    && (inputMode !== 'excel' || !!selectedQueryId);
+    && (inputMode !== 'excel' || !!selectedQueryId)
+    && !!confirmedTier;
   const canOptimize = panelAnalyzeResult && panelSelectedNums.size > 0 && !analyzing && !optimizing;
 
   return (
@@ -357,6 +360,11 @@ export default function App() {
           <AdminPanel />
         </div>
       )}
+
+      <HitlPanel
+        onConfirm={(tier) => setConfirmedTier(tier)}
+        onReset={() => setConfirmedTier(null)}
+      />
 
       <ConfigPanel
         config={config}
