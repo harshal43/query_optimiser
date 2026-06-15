@@ -36,7 +36,9 @@ const OUTPUT_RULES = [
   { key: 'generate_change_summary', label: 'Generate change summary' },
 ];
 
-const DEFAULT_CONFIG = {
+const TIERS = ['conservative', 'balanced', 'aggressive'];
+
+const DEFAULT_TIER_PRESET = {
   advisor_rules: {
     detect_select_star: true,
     detect_unnecessary_distinct: true,
@@ -65,11 +67,28 @@ const DEFAULT_CONFIG = {
     preserve_query_semantics: true,
     preserve_output_order: true,
   },
-  output_rules: {
-    generate_change_summary: true,
+};
+
+const DEFAULT_CONFIG = {
+  tier_configs: {
+    conservative: {
+      advisor_rules: { ...DEFAULT_TIER_PRESET.advisor_rules, suggest_clustering: false, suggest_removing_redundant_order_by: false, suggest_avoiding_unnecessary_ctes: false },
+      optimizer_rules: { ...DEFAULT_TIER_PRESET.optimizer_rules, rewrite_union_to_union_all: false, simplify_nested_subqueries: false, rewrite_correlated_subqueries: false },
+      safety_rules: { preserve_query_semantics: true, preserve_output_order: true },
+    },
+    balanced: {
+      advisor_rules: { ...DEFAULT_TIER_PRESET.advisor_rules, suggest_avoiding_unnecessary_ctes: false },
+      optimizer_rules: { ...DEFAULT_TIER_PRESET.optimizer_rules, remove_redundant_order_by: false, rewrite_correlated_subqueries: false },
+      safety_rules: { preserve_query_semantics: true, preserve_output_order: true },
+    },
+    aggressive: {
+      advisor_rules: { ...DEFAULT_TIER_PRESET.advisor_rules, suggest_avoiding_unnecessary_ctes: true },
+      optimizer_rules: { ...DEFAULT_TIER_PRESET.optimizer_rules, remove_redundant_order_by: true, rewrite_correlated_subqueries: true },
+      safety_rules: { preserve_query_semantics: true, preserve_output_order: false },
+    },
   },
-  optimization_goal: 'lowest_credits',
-  aggressiveness: 'moderate',
+  output_rules: { generate_change_summary: true },
+  default_tier: 'balanced',
   additional_llm_instructions: '',
 };
 
@@ -86,9 +105,21 @@ export default function AdminPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  const setAdvisorRule    = useCallback((key, val) => setConfig((p) => ({ ...p, advisor_rules:   { ...p.advisor_rules,   [key]: val } })), []);
-  const setOptimizerRule  = useCallback((key, val) => setConfig((p) => ({ ...p, optimizer_rules: { ...p.optimizer_rules, [key]: val } })), []);
-  const setSafetyRule     = useCallback((key, val) => setConfig((p) => ({ ...p, safety_rules:    { ...p.safety_rules,    [key]: val } })), []);
+  const setTierRule = useCallback((tier, ruleGroup, key, val) => {
+    setConfig((p) => ({
+      ...p,
+      tier_configs: {
+        ...p.tier_configs,
+        [tier]: {
+          ...p.tier_configs[tier],
+          [ruleGroup]: {
+            ...p.tier_configs[tier][ruleGroup],
+            [key]: val,
+          },
+        },
+      },
+    }));
+  }, []);
   const setOutputRule     = useCallback((key, val) => setConfig((p) => ({ ...p, output_rules:    { ...p.output_rules,    [key]: val } })), []);
   const setTop            = useCallback((key, val) => setConfig((p) => ({ ...p, [key]: val })), []);
 
@@ -122,33 +153,29 @@ export default function AdminPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* 1. Advisor Rules */}
-      <RuleCard
-        title="Advisor Agent Rules"
-        badge={{ label: 'AGENT 1', style: {} }}
-        rules={ADVISOR_RULES}
-        values={config.advisor_rules}
-        onChange={setAdvisorRule}
-      />
+      {/* Strategy-based Optimization */}
+      <div className="card">
+        <div className="card-title" style={{ marginBottom: 16 }}>Strategy-based Optimization</div>
+        <div style={{ marginBottom: 20 }}>
+          <div className="field" style={{ maxWidth: 280, marginBottom: 0 }}>
+            <label>Default Tier (used for Batch)</label>
+            <select value={config.default_tier} onChange={(e) => setTop('default_tier', e.target.value)}>
+              <option value="conservative">Conservative</option>
+              <option value="balanced">Balanced</option>
+              <option value="aggressive">Aggressive</option>
+            </select>
+          </div>
+        </div>
 
-      {/* 2. Optimizer Rules */}
-      <RuleCard
-        title="Optimizer Agent Rules"
-        badge={{ label: 'AGENT 2', style: { background: 'rgba(63,185,80,0.15)', color: 'var(--success)' } }}
-        rules={OPTIMIZER_RULES}
-        values={config.optimizer_rules}
-        onChange={setOptimizerRule}
-      />
-
-      {/* 3. Safety Rules */}
-      <RuleCard
-        title="Safety Rules"
-        badge={{ label: 'GUARDRAILS', style: { background: 'rgba(255,166,0,0.15)', color: '#f0a500' } }}
-        rules={SAFETY_RULES}
-        values={config.safety_rules}
-        onChange={setSafetyRule}
-        hint="When enabled, the optimizer is instructed to preserve these properties even when making aggressive rewrites."
-      />
+        {TIERS.map((tier) => (
+          <TierSection
+            key={tier}
+            tier={tier}
+            preset={config.tier_configs?.[tier] ?? DEFAULT_CONFIG.tier_configs[tier]}
+            onChange={(ruleGroup, key, val) => setTierRule(tier, ruleGroup, key, val)}
+          />
+        ))}
+      </div>
 
       {/* 4. Output Rules */}
       <RuleCard
@@ -159,29 +186,6 @@ export default function AdminPanel() {
         onChange={setOutputRule}
         hint="Controls what additional content the optimizer agent includes in its response."
       />
-
-      {/* 5. Shared Settings */}
-      <div className="card">
-        <div className="card-title" style={{ marginBottom: 16 }}>Shared Optimization Settings</div>
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          <div className="field" style={{ minWidth: 220, flex: 1, marginBottom: 0 }}>
-            <label>Optimization Goal</label>
-            <select value={config.optimization_goal} onChange={(e) => setTop('optimization_goal', e.target.value)}>
-              <option value="lowest_credits">Lowest Credits</option>
-              <option value="fastest_performance">Fastest Performance</option>
-              <option value="balanced">Balanced</option>
-            </select>
-          </div>
-          <div className="field" style={{ minWidth: 220, flex: 1, marginBottom: 0 }}>
-            <label>Optimization Aggressiveness</label>
-            <select value={config.aggressiveness} onChange={(e) => setTop('aggressiveness', e.target.value)}>
-              <option value="conservative">Conservative</option>
-              <option value="moderate">Moderate</option>
-              <option value="aggressive">Aggressive</option>
-            </select>
-          </div>
-        </div>
-      </div>
 
       {/* 6. Additional LLM Instructions */}
       <div className="card">
@@ -285,5 +289,48 @@ function CheckRow({ label, checked, onChange }) {
         {label}
       </span>
     </label>
+  );
+}
+
+function TierSection({ tier, preset, onChange }) {
+  const [open, setOpen] = useState(false);
+  const tierLabel = { conservative: 'Conservative', balanced: 'Balanced', aggressive: 'Aggressive' }[tier];
+  const tierColor = { conservative: 'var(--accent)', balanced: 'var(--success)', aggressive: '#f85149' }[tier];
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+      <div
+        onClick={() => setOpen((v) => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', marginBottom: open ? 12 : 0 }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, color: tierColor, fontFamily: 'var(--sans)' }}>{tierLabel}</span>
+      </div>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <RuleCard
+            title="Advisor Rules"
+            badge={{ label: 'AGENT 1', style: {} }}
+            rules={ADVISOR_RULES}
+            values={preset.advisor_rules}
+            onChange={(key, val) => onChange('advisor_rules', key, val)}
+          />
+          <RuleCard
+            title="Optimizer Rules"
+            badge={{ label: 'AGENT 2', style: { background: 'rgba(63,185,80,0.15)', color: 'var(--success)' } }}
+            rules={OPTIMIZER_RULES}
+            values={preset.optimizer_rules}
+            onChange={(key, val) => onChange('optimizer_rules', key, val)}
+          />
+          <RuleCard
+            title="Safety Rules"
+            badge={{ label: 'GUARDRAILS', style: { background: 'rgba(255,166,0,0.15)', color: '#f0a500' } }}
+            rules={SAFETY_RULES}
+            values={preset.safety_rules}
+            onChange={(key, val) => onChange('safety_rules', key, val)}
+          />
+        </div>
+      )}
+    </div>
   );
 }
