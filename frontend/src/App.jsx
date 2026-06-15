@@ -82,6 +82,7 @@ export default function App() {
   }, []);
 
   const handleAnalyze = useCallback(async () => {
+    console.log('[handleAnalyze] confirmedTier =', confirmedTier, 'type =', typeof confirmedTier);
     setError(''); setAnalyzeResult(null); setSelectedNums(new Set()); setOptimizeResult(null); setAnalyzing(true);
     try {
       let res;
@@ -126,7 +127,7 @@ export default function App() {
 
     const promises = selectedIds.map(async (qid) => {
       try {
-        const res = await analyzeQuery(qid, config.model);
+        const res = await analyzeQuery(qid, config.model, confirmedTier);
         results[qid] = res;
         selections[qid] = new Set(res.parsed_suggestions.map((s) => s.number));
       } catch (err) {
@@ -144,7 +145,7 @@ export default function App() {
     setBatchPhase('review');
     const firstOk = selectedIds.find((id) => !results[id]?.error);
     if (firstOk) setBatchViewQueryId(firstOk);
-  }, [config]);
+  }, [config, confirmedTier]);
 
   const handleBatchToggleSuggestion = useCallback((number) => {
     if (!batchViewQueryId) return;
@@ -174,7 +175,7 @@ export default function App() {
         results[qid] = { error: 'No suggestions selected' };
       } else {
         try {
-          const res = await optimizeQuery(qid, config.model, selectedTexts);
+          const res = await optimizeQuery(qid, config.model, selectedTexts, confirmedTier);
           results[qid] = res;
         } catch (err) {
           results[qid] = { error: err.message };
@@ -192,7 +193,7 @@ export default function App() {
       const firstOk = successIds.find((id) => !results[id]?.error);
       if (firstOk) setBatchViewQueryId(firstOk);
     }
-  }, [batchRunIds, batchAnalyzeResults, batchSuggestionSelections, batchViewQueryId, config]);
+  }, [batchRunIds, batchAnalyzeResults, batchSuggestionSelections, batchViewQueryId, config, confirmedTier]);
 
   const handleOpenSfModal = useCallback(() => {
     setSfConnectError(''); setShowSfModal(true);
@@ -413,7 +414,7 @@ export default function App() {
           onOptimizeAll={handleBatchOptimizeAll}
           onDownload={handleBatchDownload}
           onReset={handleBatchReset}
-          canRun={!!config.model}
+          canRun={!!config.model && !!confirmedTier}
           selectedQueryId={selectedQueryId}
           onSelectQuery={setSelectedQueryId}
         />
