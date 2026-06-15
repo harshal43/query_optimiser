@@ -47,18 +47,21 @@ export default function HitlPanel({ onConfirm, onReset }) {
       onReset();
       return;
     }
+    let cancelled = false;
     setQualifying(true);
     setError('');
     qualifyStrategy(priority, tolerance)
       .then((res) => {
+        if (cancelled) return;
         setRecommended(res.recommended_tier);
         setRulesPreview(res.rules_preview);
         setOverrideTier('');
         setConfirmed(false);
         onReset();
       })
-      .catch((err) => setError(`Strategy qualification failed: ${err.message}`))
-      .finally(() => setQualifying(false));
+      .catch((err) => { if (!cancelled) setError(`Strategy qualification failed: ${err.message}`); })
+      .finally(() => { if (!cancelled) setQualifying(false); });
+    return () => { cancelled = true; };
   }, [priority, tolerance]);
 
   const handleConfirm = () => {
