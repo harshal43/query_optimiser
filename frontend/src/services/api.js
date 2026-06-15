@@ -37,38 +37,38 @@ export async function fetchModels() {
   return data.models;
 }
 
-export async function analyzeQuery(queryId, model) {
+export async function analyzeQuery(queryId, model, strategy = '') {
   const res = await fetch(`${BASE}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_id: queryId, model }),
+    body: JSON.stringify({ query_id: queryId, model, strategy }),
   });
   return handleResponse(res);
 }
 
-export async function optimizeQuery(queryId, model, selectedSuggestions) {
+export async function optimizeQuery(queryId, model, selectedSuggestions, strategy = '') {
   const res = await fetch(`${BASE}/optimize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_id: queryId, model, selected_suggestions: selectedSuggestions }),
+    body: JSON.stringify({ query_id: queryId, model, selected_suggestions: selectedSuggestions, strategy }),
   });
   return handleResponse(res);
 }
 
-export async function analyzeCustomQuery(queryText, credits, model) {
+export async function analyzeCustomQuery(queryText, credits, model, strategy = '') {
   const res = await fetch(`${BASE}/analyze-custom`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_text: queryText, credits: credits || 0, model }),
+    body: JSON.stringify({ query_text: queryText, credits: credits || 0, model, strategy }),
   });
   return handleResponse(res);
 }
 
-export async function optimizeCustomQuery(queryText, credits, model, selectedSuggestions) {
+export async function optimizeCustomQuery(queryText, credits, model, selectedSuggestions, strategy = '') {
   const res = await fetch(`${BASE}/optimize-custom`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_text: queryText, credits: credits || 0, model, selected_suggestions: selectedSuggestions }),
+    body: JSON.stringify({ query_text: queryText, credits: credits || 0, model, selected_suggestions: selectedSuggestions, strategy }),
   });
   return handleResponse(res);
 }
@@ -94,6 +94,15 @@ export async function disconnectSnowflake() {
 
 export async function fetchSnowflakeQueries(category) {
   const res = await fetch(`${BASE}/snowflake/queries?category=${encodeURIComponent(category)}`);
+  return handleResponse(res);
+}
+
+export async function qualifyStrategy(priority, tolerance) {
+  const res = await fetch(`${BASE}/qualify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ priority, tolerance }),
+  });
   return handleResponse(res);
 }
 
