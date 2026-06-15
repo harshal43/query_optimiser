@@ -10,6 +10,7 @@ from ..llm.client import LLMClient
 from ..agents.advisor import run_advisor_agent, run_advisor_agent_async
 from ..agents.optimizer import run_optimizer_agent, run_optimizer_agent_async
 from ..config import SUPPORTED_MODELS, get_llm_credentials
+from ..data.admin_store import load_config
 
 router = APIRouter(prefix="/api", tags=["Query Optimization"])
 
@@ -48,6 +49,31 @@ class BatchOptimizeItem(BaseModel):
 class BatchOptimizeRequest(BaseModel):
     items: List[BatchOptimizeItem]
     model: str
+
+_VALID_PRIORITIES = {"cost_savings", "balanced", "speed"}
+_VALID_TOLERANCES = {"minimal", "standard", "major"}
+
+_QUALIFY_MATRIX: dict[tuple[str, str], str] = {
+    ("cost_savings", "minimal"):  "conservative",
+    ("cost_savings", "standard"): "conservative",
+    ("cost_savings", "major"):    "balanced",
+    ("balanced",     "minimal"):  "conservative",
+    ("balanced",     "standard"): "balanced",
+    ("balanced",     "major"):    "aggressive",
+    ("speed",        "minimal"):  "balanced",
+    ("speed",        "standard"): "aggressive",
+    ("speed",        "major"):    "aggressive",
+}
+
+
+class QualifyRequest(BaseModel):
+    priority: str
+    tolerance: str
+
+
+class QualifyResponse(BaseModel):
+    recommended_tier: str
+    rules_preview: dict
 
 # ------------------------------------------------------------
 # Query catalogue endpoints
@@ -114,6 +140,27 @@ async def upload_excel(file: UploadFile = File(...)):
 @router.get("/data-source")
 def data_source():
     return {"source": get_active_source()}
+
+@router.post("/qualify", response_model=QualifyResponse)
+def qualify_strategy(request: QualifyRequest):
+    if request.priority not in _VALID_PRIORITIES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"priority must be one of {sorted(_VALID_PRIORITIES)}",
+        )
+    if request.tolerance not in _VALID_TOLERANCES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"tolerance must be one of {sorted(_VALID_TOLERANCES)}",
+        )
+    config = load_config()
+    tier = _QUALIFY_MATRIX[(request.priority, request.tolerance)]
+    preset = config.tier_configs.get(tier, config.tier_configs[config.default_tier])
+    rules_preview = {
+        "advisor_rules": preset.advisor_rules.model_dump(),
+        "optimizer_rules": preset.optimizer_rules.model_dump(),
+    }
+    return QualifyResponse(recommended_tier=tier, rules_preview=rules_preview)
 
 @router.get("/models")
 def list_models():
