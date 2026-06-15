@@ -21,22 +21,26 @@ router = APIRouter(prefix="/api", tags=["Query Optimization"])
 class AnalyzeRequest(BaseModel):
     query_id: str
     model: str
+    strategy: str = ""
 
 class OptimizeRequest(BaseModel):
     query_id: str
     model: str
     selected_suggestions: List[str]
+    strategy: str = ""
 
 class AnalyzeCustomRequest(BaseModel):
     query_text: str
     credits: float = 0.0
     model: str
+    strategy: str = ""
 
 class OptimizeCustomRequest(BaseModel):
     query_text: str
     credits: float = 0.0
     model: str
     selected_suggestions: List[str]
+    strategy: str = ""
 
 class BatchAnalyzeRequest(BaseModel):
     query_ids: List[str]
@@ -233,7 +237,7 @@ async def analyze_query(request: AnalyzeRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        advisor_result = await run_advisor_agent_async(client, query_data["query_text"])
+        advisor_result = await run_advisor_agent_async(client, query_data["query_text"], request.strategy)
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -275,7 +279,7 @@ async def optimize_query(request: OptimizeRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        optimizer_result = await run_optimizer_agent_async(client, original_query, selected_text)
+        optimizer_result = await run_optimizer_agent_async(client, original_query, selected_text, request.strategy)
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -316,7 +320,7 @@ async def analyze_custom_query(request: AnalyzeCustomRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        advisor_result = await run_advisor_agent_async(client, request.query_text)
+        advisor_result = await run_advisor_agent_async(client, request.query_text, request.strategy)
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -351,7 +355,7 @@ async def optimize_custom_query(request: OptimizeCustomRequest):
     try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        optimizer_result = await run_optimizer_agent_async(client, request.query_text, selected_text)
+        optimizer_result = await run_optimizer_agent_async(client, request.query_text, selected_text, request.strategy)
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:

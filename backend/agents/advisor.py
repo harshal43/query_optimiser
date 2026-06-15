@@ -1,6 +1,6 @@
 """Agent 1 - Query Optimization Advisor
 
-Input: Raw Snowflake SQL query
+Input: Raw Snowflake SQL query + strategy tier
 Output: Numbered optimization suggestions (raw text + parsed list)
 """
 
@@ -9,10 +9,6 @@ from ..llm.client import LLMClient
 from ..llm.cost import calculate_cost
 from ..data.admin_store import load_config
 from ..models.admin_config import AdminConfig
-
-# ------------------------------------------------------------
-# Prompt
-# ------------------------------------------------------------
 
 SYSTEM_PROMPT = """You are a Snowflake SQL performance expert with deep knowledge of:
 - Snowflake query optimization patterns
@@ -40,27 +36,18 @@ SUGGESTIONS:
 Do NOT include any preamble, summary, or conclusion outside this structure.
 """
 
-# ------------------------------------------------------------
-# Admin config → prompt suffix
-# ------------------------------------------------------------
-
-_GOAL_LABELS = {
-    "lowest_credits": "Lowest Snowflake Credits",
-    "fastest_performance": "Fastest Query Performance",
-    "balanced": "Balanced Credits and Performance",
-}
-
-_AGG_LABELS = {
+_TIER_LABELS = {
     "conservative": "Conservative — minimal changes, preserve existing structure",
-    "moderate": "Moderate — standard optimizations",
-    "aggressive": "Aggressive — maximum optimization, restructure if needed",
+    "balanced":     "Balanced — standard optimizations",
+    "aggressive":   "Aggressive — maximum optimization, restructure if needed",
 }
 
 
-def _build_advisor_suffix(config: AdminConfig) -> str:
+def _build_advisor_suffix(config: AdminConfig, strategy: str) -> str:
+    tier = strategy if strategy in config.tier_configs else config.default_tier
+    r = config.tier_configs[tier].advisor_rules
     lines: list[str] = []
 
-    r = config.advisor_rules
     enabled: list[str] = []
     if r.detect_select_star:
         enabled.append("- Detect SELECT * usage and suggest selecting only needed columns.")
@@ -91,18 +78,17 @@ def _build_advisor_suffix(config: AdminConfig) -> str:
         lines.append("\nAdvisor Rules Enabled:")
         lines.extend(enabled)
 
-    lines.append(f"\nOptimization Goal: {_GOAL_LABELS.get(config.optimization_goal, config.optimization_goal)}")
-    lines.append(f"Aggressiveness: {_AGG_LABELS.get(config.aggressiveness, config.aggressiveness)}")
+    lines.append(f"\nStrategy: {_TIER_LABELS.get(tier, tier)}")
+
+    safety = config.tier_configs[tier].safety_rules
+    if safety.preserve_query_semantics:
+        lines.append("Safety: Preserve exact query semantics — do not change what data is returned.")
 
     if config.additional_llm_instructions.strip():
         lines.append(f"\nAdditional Instructions:\n{config.additional_llm_instructions.strip()}")
 
     return "\n".join(lines)
 
-
-# ------------------------------------------------------------
-# Suggestion parser
-# ------------------------------------------------------------
 
 def parse_suggestions(raw: str) -> list:
     text = re.sub(r'(?i)^SUGGESTIONS:\s*', '', raw.strip())
@@ -124,13 +110,9 @@ def parse_suggestions(raw: str) -> list:
     return result
 
 
-# ------------------------------------------------------------
-# Agent runners
-# ------------------------------------------------------------
-
-async def run_advisor_agent_async(client: LLMClient, query: str) -> dict:
+async def run_advisor_agent_async(client: LLMClient, query: str, strategy: str = "") -> dict:
     config = load_config()
-    system = SYSTEM_PROMPT + _build_advisor_suffix(config)
+    system = SYSTEM_PROMPT + _build_advisor_suffix(config, strategy)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Analyze the following Snowflake SQL query and provide optimization suggestions.\n\n```sql\n{query}\n```"}
@@ -147,9 +129,9 @@ async def run_advisor_agent_async(client: LLMClient, query: str) -> dict:
     }
 
 
-def run_advisor_agent(client: LLMClient, query: str) -> dict:
+def run_advisor_agent(client: LLMClient, query: str, strategy: str = "") -> dict:
     config = load_config()
-    system = SYSTEM_PROMPT + _build_advisor_suffix(config)
+    system = SYSTEM_PROMPT + _build_advisor_suffix(config, strategy)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Analyze the following Snowflake SQL query and provide optimization suggestions.\n\n```sql\n{query}\n```"}

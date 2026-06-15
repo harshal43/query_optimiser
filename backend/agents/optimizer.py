@@ -1,6 +1,6 @@
 """Agent 2 - Query Optimizer
 
-Input: Original SQL + optimization suggestions from Agent 1
+Input: Original SQL + optimization suggestions from Agent 1 + strategy tier
 Output: Optimized Snowflake SQL + explanation + estimated credit savings %
 """
 
@@ -9,10 +9,6 @@ from ..llm.client import LLMClient
 from ..llm.cost import calculate_cost
 from ..data.admin_store import load_config
 from ..models.admin_config import AdminConfig
-
-# ------------------------------------------------------------
-# Prompt
-# ------------------------------------------------------------
 
 SYSTEM_PROMPT = """You are a Snowflake SQL rewrite engineer.
 
@@ -41,27 +37,18 @@ CREDIT_SAVINGS_ESTIMATE: [A single number between 0 and 99 — the estimated per
 Reasoning: [one concise sentence explaining why this reduction is expected]
 """
 
-# ------------------------------------------------------------
-# Admin config → prompt suffix
-# ------------------------------------------------------------
-
-_GOAL_LABELS = {
-    "lowest_credits": "Lowest Snowflake Credits",
-    "fastest_performance": "Fastest Query Performance",
-    "balanced": "Balanced Credits and Performance",
-}
-
-_AGG_LABELS = {
+_TIER_LABELS = {
     "conservative": "Conservative — minimal changes, preserve existing structure",
-    "moderate": "Moderate — standard optimizations",
-    "aggressive": "Aggressive — maximum optimization, restructure if needed",
+    "balanced":     "Balanced — standard optimizations",
+    "aggressive":   "Aggressive — maximum optimization, restructure if needed",
 }
 
 
-def _build_optimizer_suffix(config: AdminConfig) -> str:
+def _build_optimizer_suffix(config: AdminConfig, strategy: str) -> str:
+    tier = strategy if strategy in config.tier_configs else config.default_tier
+    r = config.tier_configs[tier].optimizer_rules
     lines: list[str] = []
 
-    r = config.optimizer_rules
     enabled: list[str] = []
     if r.rewrite_union_to_union_all:
         enabled.append("- Rewrite UNION to UNION ALL where duplicates are not expected.")
@@ -84,8 +71,7 @@ def _build_optimizer_suffix(config: AdminConfig) -> str:
         lines.append("\nOptimization Rules:")
         lines.extend(enabled)
 
-    # Safety rules
-    s = config.safety_rules
+    s = config.tier_configs[tier].safety_rules
     safety: list[str] = []
     if s.preserve_query_semantics:
         safety.append("- Preserve exact query semantics — do not change what data is returned.")
@@ -95,11 +81,8 @@ def _build_optimizer_suffix(config: AdminConfig) -> str:
         lines.append("\nSafety Constraints (must be respected):")
         lines.extend(safety)
 
-    # Goal + aggressiveness
-    lines.append(f"\nPrimary Objective: {_GOAL_LABELS.get(config.optimization_goal, config.optimization_goal)}")
-    lines.append(f"Aggressiveness: {_AGG_LABELS.get(config.aggressiveness, config.aggressiveness)}")
+    lines.append(f"\nStrategy: {_TIER_LABELS.get(tier, tier)}")
 
-    # Change summary instruction
     if config.output_rules.generate_change_summary:
         lines.append(
             "\nAfter CREDIT_SAVINGS_ESTIMATE, append a CHANGE_SUMMARY section exactly like this:\n"
@@ -116,10 +99,6 @@ def _build_optimizer_suffix(config: AdminConfig) -> str:
 
     return "\n".join(lines)
 
-
-# ------------------------------------------------------------
-# Response parsing helpers
-# ------------------------------------------------------------
 
 def extract_sql(content: str) -> str:
     match = re.search(r'```sql\s*(.*?)\s*```', content, re.DOTALL | re.IGNORECASE)
@@ -160,17 +139,14 @@ def extract_credit_savings(content: str) -> dict:
     return {"percentage": round(pct, 2), "reasoning": reasoning}
 
 
-# ------------------------------------------------------------
-# Agent runners
-# ------------------------------------------------------------
-
 async def run_optimizer_agent_async(
     client: LLMClient,
     original_query: str,
     suggestions: str,
+    strategy: str = "",
 ) -> dict:
     config = load_config()
-    system = SYSTEM_PROMPT + _build_optimizer_suffix(config)
+    system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Original Snowflake SQL query:\n```sql\n{original_query}\n```\n\nOptimization suggestions:\n{suggestions}\n\nProduce the optimized query, explain all changes, and estimate credit savings."}
@@ -194,9 +170,10 @@ def run_optimizer_agent(
     client: LLMClient,
     original_query: str,
     suggestions: str,
+    strategy: str = "",
 ) -> dict:
     config = load_config()
-    system = SYSTEM_PROMPT + _build_optimizer_suffix(config)
+    system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Original Snowflake SQL query:\n```sql\n{original_query}\n```\n\nOptimization suggestions:\n{suggestions}\n\nProduce the optimized query, explain all changes, and estimate credit savings."}
