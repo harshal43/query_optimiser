@@ -12,10 +12,13 @@ import SnowflakeConnectModal from './components/SnowflakeConnectModal.jsx';
 import SnowflakeDashboard from './components/SnowflakeDashboard.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 import HitlPanel from './components/HitlPanel.jsx';
+import HitlFlagsPanel from './components/HitlFlagsPanel.jsx';
+import ComparisonPanel from './components/ComparisonPanel.jsx';
 import {
   fetchQueryIds, fetchQueryDetail, uploadExcel, analyzeQuery, optimizeQuery,
   analyzeCustomQuery, optimizeCustomQuery,
   connectSnowflake, checkSnowflakeStatus, disconnectSnowflake,
+  executeComparison,
 } from './services/api.js';
 
 const DEFAULT_CONFIG = { model: 'claude-sonnet-4' };
@@ -46,6 +49,10 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [lightTheme, setLightTheme] = useState(false);
   const [confirmedTier, setConfirmedTier] = useState(null);
+  const [humanFlags, setHumanFlags] = useState([]);
+  const [resolvedFlags, setResolvedFlags] = useState([]);
+  const [comparisonResult, setComparisonResult] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
 
   useEffect(() => {
     document.body.classList.toggle('light', lightTheme);
@@ -82,33 +89,68 @@ export default function App() {
   }, []);
 
   const handleAnalyze = useCallback(async () => {
-    setError(''); setAnalyzeResult(null); setSelectedNums(new Set()); setOptimizeResult(null); setAnalyzing(true);
+    setError('');
+    setAnalyzeResult(null);
+    setSelectedNums(new Set());
+    setOptimizeResult(null);
+    setHumanFlags([]);
+    setResolvedFlags([]);
+    setComparisonResult(null);
+    setAnalyzing(true);
     try {
       let res;
-      if (inputMode === 'custom') { res = await analyzeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model, confirmedTier); }
-      else { res = await analyzeQuery(selectedQueryId, config.model, confirmedTier); }
-      setAnalyzeResult(res); setSelectedNums(new Set(res.parsed_suggestions.map((s) => s.number)));
-    } catch (err) { setError(`Analysis failed: ${err.message}`); }
-    finally { setAnalyzing(false); }
+      if (inputMode === 'custom') {
+        res = await analyzeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model, confirmedTier);
+      } else {
+        res = await analyzeQuery(selectedQueryId, config.model, confirmedTier);
+      }
+      setAnalyzeResult(res);
+      setSelectedNums(new Set(res.parsed_suggestions.map((s) => s.number)));
+      setHumanFlags(res.human_flags || []);
+    } catch (err) {
+      setError(`Analysis failed: ${err.message}`);
+    } finally {
+      setAnalyzing(false);
+    }
   }, [selectedQueryId, config, inputMode, customQueryText, customCredits, confirmedTier]);
 
   const handleToggleSuggestion = useCallback((number) => {
     setSelectedNums((prev) => { const next = new Set(prev); next.has(number) ? next.delete(number) : next.add(number); return next; });
   }, []);
 
-  const handleOptimize = useCallback(async () => {
+  const handleOptimize = useCallback(async (flagsOverride = null) => {
     if (!analyzeResult) return;
-    const selectedTexts = analyzeResult.parsed_suggestions.filter((s) => selectedNums.has(s.number)).map((s) => s.full_text);
-    if (selectedTexts.length === 0) { setError('Please select at least one suggestion before optimizing.'); return; }
-    setError(''); setOptimizeResult(null); setOptimizing(true);
+    const selectedTexts = analyzeResult.parsed_suggestions
+      .filter((s) => selectedNums.has(s.number))
+      .map((s) => s.full_text);
+    if (selectedTexts.length === 0) {
+      setError('Please select at least one suggestion before optimizing.');
+      return;
+    }
+    const activeFlags = flagsOverride ?? resolvedFlags;
+    setError('');
+    setOptimizeResult(null);
+    setComparisonResult(null);
+    setOptimizing(true);
     try {
       let res;
-      if (inputMode === 'custom') { res = await optimizeCustomQuery(customQueryText, parseFloat(customCredits) || 0, config.model, selectedTexts, confirmedTier); }
-      else { res = await optimizeQuery(selectedQueryId, config.model, selectedTexts, confirmedTier); }
+      if (inputMode === 'custom') {
+        res = await optimizeCustomQuery(
+          customQueryText, parseFloat(customCredits) || 0,
+          config.model, selectedTexts, confirmedTier, activeFlags,
+        );
+      } else {
+        res = await optimizeQuery(
+          selectedQueryId, config.model, selectedTexts, confirmedTier, activeFlags,
+        );
+      }
       setOptimizeResult(res);
-    } catch (err) { setError(`Optimization failed: ${err.message}`); }
-    finally { setOptimizing(false); }
-  }, [analyzeResult, selectedNums, selectedQueryId, config, inputMode, customQueryText, customCredits, confirmedTier]);
+    } catch (err) {
+      setError(`Optimization failed: ${err.message}`);
+    } finally {
+      setOptimizing(false);
+    }
+  }, [analyzeResult, selectedNums, selectedQueryId, config, inputMode, customQueryText, customCredits, confirmedTier, resolvedFlags]);
 
   const handleBatchAnalyzeAll = useCallback(async (selectedIds) => {
     setBatchPhase('analyzing');
@@ -309,6 +351,29 @@ export default function App() {
     return queryDetail;
   })();
 
+  const handleApplyFlagsAndOptimize = useCallback(async (flags) => {
+    setResolvedFlags(flags);
+    await handleOptimize(flags);
+  }, [handleOptimize]);
+
+  const handleRunComparison = useCallback(async () => {
+    if (!panelOptimizeResult?.optimizer_result?.optimized_query) return;
+    const originalQuery =
+      panelQueryDetail?.query_text ||
+      (inputMode === 'custom' ? customQueryText : '');
+    const optimizedQuery = panelOptimizeResult.optimizer_result.optimized_query;
+    setComparisonLoading(true);
+    setComparisonResult(null);
+    try {
+      const result = await executeComparison(originalQuery, optimizedQuery);
+      setComparisonResult(result);
+    } catch (err) {
+      setError(`Comparison failed: ${err.message}`);
+    } finally {
+      setComparisonLoading(false);
+    }
+  }, [panelOptimizeResult, panelQueryDetail, inputMode, customQueryText]);
+
   const hideSuggestApplyBtn = batchPhase === 'review' || batchPhase === 'optimizing'
     || (!isBatchActive && !!optimizeResult);
   const canAnalyze = !!config.model && !analyzing && !optimizing && inputMode !== 'snowflake'
@@ -435,12 +500,31 @@ export default function App() {
         />
       </div>
 
+      {!isBatchActive && humanFlags.length > 0 && panelAnalyzeResult && (
+        <HitlFlagsPanel
+          flags={humanFlags}
+          onConfirm={handleApplyFlagsAndOptimize}
+          onSkip={() => handleOptimize()}
+        />
+      )}
+
       <OptimizedQueryPanel
         optimizerResult={panelOptimizeResult?.optimizer_result ?? null}
         loading={optimizing || batchPhase === 'optimizing'}
         onRegenerate={isBatchActive ? undefined : handleOptimize}
         onCorrectOutput={() => {}}
+        onRunComparison={isBatchActive ? undefined : handleRunComparison}
+        sfConnected={sfConnected}
+        comparisonLoading={comparisonLoading}
       />
+
+      {!isBatchActive && (
+        <ComparisonPanel
+          result={comparisonResult}
+          loading={comparisonLoading}
+          onRerun={handleRunComparison}
+        />
+      )}
 
       {panelOptimizeResult && (
         <CostComparison costComparison={panelOptimizeResult.cost_comparison} />
