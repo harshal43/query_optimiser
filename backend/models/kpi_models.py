@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -22,4 +22,4 @@ class QueryKPIs:
 class ComparisonResult:
     pre: QueryKPIs
     post: QueryKPIs
-    improvement: dict  # metric_name → pct_change (negative = improvement)
+    improvement: dict[str, float]  # metric_name → pct_change (negative = improvement)
