@@ -361,6 +361,10 @@ export default function App() {
     const originalQuery =
       panelQueryDetail?.query_text ||
       (inputMode === 'custom' ? customQueryText : '');
+    if (!originalQuery) {
+      setError('Original query text is unavailable for comparison.');
+      return;
+    }
     const optimizedQuery = panelOptimizeResult.optimizer_result.optimized_query;
     setComparisonLoading(true);
     setComparisonResult(null);
