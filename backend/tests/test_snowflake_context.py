@@ -266,15 +266,31 @@ def test_build_context_block_contains_metadata():
     assert "(CREATED_AT)" in block
     assert "0.83" in block
     assert "1,000,000" in block
+    assert "NOT NULL" in block
+    assert "nullable" in block
 
 
 def test_build_context_block_none_clustering_key():
     meta = TableMeta(columns=[], clustering_key=None, clustering_depth=None, row_count=None)
     block = build_context_block(_make_context({"SMALL": meta}))
     assert "none" in block
+    assert "SMALL" in block
 
 
 def test_build_context_block_high_depth_warns():
     meta = TableMeta(columns=[], clustering_key="(X)", clustering_depth=0.9, row_count=None)
     block = build_context_block(_make_context({"BIG": meta}))
-    assert "poor clustering" in block or "micro-partition" in block
+    assert "poor clustering" in block
+    assert "micro-partition" in block
+
+
+def test_build_context_block_depth_at_boundary_is_well_clustered():
+    meta = TableMeta(columns=[], clustering_key="(X)", clustering_depth=0.7, row_count=None)
+    block = build_context_block(_make_context({"T": meta}))
+    assert "well clustered" in block
+
+
+def test_build_context_block_just_above_boundary_warns():
+    meta = TableMeta(columns=[], clustering_key="(X)", clustering_depth=0.71, row_count=None)
+    block = build_context_block(_make_context({"T": meta}))
+    assert "poor clustering" in block

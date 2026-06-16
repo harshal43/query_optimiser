@@ -208,7 +208,7 @@ def build_context_block(sf_context: SnowflakeContext) -> str:
     if not sf_context.available or not sf_context.tables:
         return ""
 
-    lines = ["\nSnowflake Metadata (fetched live — use this to validate your suggestions):"]
+    lines = ["Snowflake Metadata (fetched live — use this to validate your suggestions):"]
     for table_name, meta in sf_context.tables.items():
         lines.append(f"\nTable: {table_name}")
         if meta.columns:
