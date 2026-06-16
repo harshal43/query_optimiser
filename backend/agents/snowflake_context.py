@@ -37,6 +37,7 @@ class SnowflakeContext:
 # ── TTL cache (module-level singleton) ───────────────────────────────────────
 
 _cache: dict[str, tuple[TableMeta, float]] = {}
+_cache_connection_key: str = ""  # tracks "db.schema" for the last connection
 _TTL_SECONDS: int = 300
 _IDENT_RE = re.compile(r'^[A-Za-z0-9_$]+$')
 
@@ -119,9 +120,9 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
             raw_rc = table_row.get("row_count")
         row_count = int(raw_rc) if raw_rc is not None else None
 
-    # 4. Clustering depth (system function — may raise if no clustering key)
+    # 4. Clustering depth — only if clustering_key and db is known
     clustering_depth: Optional[float] = None
-    if clustering_key:
+    if clustering_key and db:
         try:
             cur.execute(f"SELECT system$clustering_depth('{db}.{schema}.{table}')")
             depth_row = cur.fetchone()
@@ -160,12 +161,24 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
     schema = (creds.get("schema_name") or "PUBLIC").upper()
     conn = sc._conn
 
+    # Fix 1 — TOCTOU: conn could become None after is_connected() returned True
+    if conn is None:
+        return SnowflakeContext(available=False, tables={})
+
+    # Fix 3 — clear cache when db/schema changes (e.g. reconnect to different database)
+    global _cache_connection_key
+    connection_key = f"{db}.{schema}"
+    if connection_key != _cache_connection_key:
+        _cache.clear()
+        _cache_connection_key = connection_key
+
     result: dict[str, TableMeta] = {}
     errors: list[str] = []
     now = time.monotonic()
 
     for table in tables:
-        cache_key = f"{schema}.{table}"
+        # Fix 2 — include db in cache key to avoid cross-database collisions
+        cache_key = f"{db}.{schema}.{table}"
         if cache_key in _cache:
             meta, fetched_at = _cache[cache_key]
             if now - fetched_at < _TTL_SECONDS:
@@ -175,9 +188,11 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
         try:
             meta = _fetch_table_meta(conn, db, schema, table)
             if meta is None:
-                errors.append(f"Table not found in schema: {table}")
+                # Fix 6 — message is accurate for both "table absent" and "name rejected"
+                errors.append(f"Could not fetch metadata for table: {table}")
                 continue
-            _cache[cache_key] = (meta, now)
+            # Fix 5 — fresh timestamp so TTL isn't shortened by loop latency
+            _cache[cache_key] = (meta, time.monotonic())
             result[table] = meta
         except Exception as exc:
             errors.append(f"Error fetching {table}: {exc}")

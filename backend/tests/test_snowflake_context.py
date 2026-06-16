@@ -133,11 +133,14 @@ def test_missing_table_logged_to_fetch_errors():
 
     assert ctx.available is True
     assert "GHOST_TABLE" not in ctx.tables
-    assert any("GHOST_TABLE" in e for e in ctx.fetch_errors)
+    # Fix 6: error message now says "Could not fetch metadata for table:"
+    assert any("Could not fetch metadata for table" in e and "GHOST_TABLE" in e
+               for e in ctx.fetch_errors)
 
 
 def test_cache_prevents_duplicate_fetch():
     sc_module._cache.clear()
+    sc_module._cache_connection_key = ""  # reset so first call sets it
 
     col_rows = [{"COLUMN_NAME": "ID", "DATA_TYPE": "NUMBER", "IS_NULLABLE": "NO"}]
     cursor = MagicMock()
@@ -160,11 +163,12 @@ def test_cache_prevents_duplicate_fetch():
 
 def test_cache_expires_after_ttl():
     sc_module._cache.clear()
+    sc_module._cache_connection_key = "DB.PUBLIC"  # match the creds used below
 
-    # Pre-seed an expired entry
+    # Pre-seed an expired entry using the db-qualified key (Fix 2)
     stale_meta = TableMeta(columns=[], clustering_key=None, clustering_depth=None, row_count=None)
     expired_ts = time.monotonic() - sc_module._TTL_SECONDS - 1
-    sc_module._cache["PUBLIC.ORDERS"] = (stale_meta, expired_ts)
+    sc_module._cache["DB.PUBLIC.ORDERS"] = (stale_meta, expired_ts)
 
     col_rows = [{"COLUMN_NAME": "ID", "DATA_TYPE": "NUMBER", "IS_NULLABLE": "NO"}]
     cursor = MagicMock()
@@ -180,3 +184,48 @@ def test_cache_expires_after_ttl():
 
     # Expired entry should have been re-fetched
     assert mock_conn.cursor.call_count >= 1
+
+
+# ── Fix 1: TOCTOU — conn becomes None after is_connected() ───────────────────
+
+def test_returns_unavailable_when_conn_is_none_after_is_connected():
+    """is_connected() returns True but _conn is None (race with disconnect)."""
+    with patch("backend.data.snowflake_connector.is_connected", return_value=True), \
+         patch("backend.data.snowflake_connector._conn", None), \
+         patch("backend.data.snowflake_connector._creds", {"database": "DB", "schema_name": "PUBLIC"}):
+        ctx = fetch_snowflake_context("SELECT * FROM orders")
+
+    assert ctx.available is False
+    assert ctx.tables == {}
+    assert ctx.fetch_errors == []
+
+
+# ── Fix 3: cache cleared when db/schema changes ───────────────────────────────
+
+def test_cache_cleared_on_db_schema_change():
+    """Switching to a different database clears the stale cache."""
+    sc_module._cache.clear()
+    sc_module._cache_connection_key = "OLD_DB.PUBLIC"
+
+    # Pre-seed a fresh (non-expired) entry under the old connection key
+    stale_meta = TableMeta(columns=[], clustering_key=None, clustering_depth=None, row_count=None)
+    sc_module._cache["OLD_DB.PUBLIC.ORDERS"] = (stale_meta, time.monotonic())
+
+    col_rows = [{"COLUMN_NAME": "ID", "DATA_TYPE": "NUMBER", "IS_NULLABLE": "NO"}]
+    cursor = MagicMock()
+    cursor.fetchall.side_effect = [col_rows, []]
+    cursor.fetchone.side_effect = [{"CLUSTERING_KEY": None, "ROW_COUNT": 10}, None]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = cursor
+
+    # Connect with a NEW database — cache should be cleared, fresh fetch performed
+    with patch("backend.data.snowflake_connector.is_connected", return_value=True), \
+         patch("backend.data.snowflake_connector._conn", mock_conn), \
+         patch("backend.data.snowflake_connector._creds", {"database": "NEW_DB", "schema_name": "PUBLIC"}):
+        ctx = fetch_snowflake_context("SELECT * FROM orders")
+
+    # Cache was cleared, so a real fetch happened
+    assert mock_conn.cursor.call_count >= 1
+    assert sc_module._cache_connection_key == "NEW_DB.PUBLIC"
+    assert ctx.available is True
+    assert "ORDERS" in ctx.tables
