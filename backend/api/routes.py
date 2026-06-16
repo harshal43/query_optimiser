@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import asdict
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List
@@ -521,5 +522,4 @@ async def execute_comparison(request: ExecuteComparisonRequest):
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Execution failed: {exc}")
 
-    from dataclasses import asdict
     return asdict(result)
