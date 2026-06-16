@@ -7,6 +7,7 @@ from backend.agents.snowflake_context import (
     _extract_tables,
     _fetch_table_meta,
     fetch_snowflake_context,
+    build_context_block,
     SnowflakeContext,
     TableMeta,
     ColumnMeta,
@@ -229,3 +230,51 @@ def test_cache_cleared_on_db_schema_change():
     assert sc_module._cache_connection_key == "NEW_DB.PUBLIC"
     assert ctx.available is True
     assert "ORDERS" in ctx.tables
+
+
+# ── build_context_block ───────────────────────────────────────────────────────
+
+def _make_context(tables: dict) -> SnowflakeContext:
+    return SnowflakeContext(available=True, tables=tables)
+
+
+def test_build_context_block_empty_when_not_available():
+    ctx = SnowflakeContext(available=False, tables={})
+    assert build_context_block(ctx) == ""
+
+
+def test_build_context_block_empty_when_no_tables():
+    ctx = SnowflakeContext(available=True, tables={})
+    assert build_context_block(ctx) == ""
+
+
+def test_build_context_block_contains_metadata():
+    meta = TableMeta(
+        columns=[
+            ColumnMeta("ORDER_ID", "NUMBER",  False, ["PRIMARY KEY"]),
+            ColumnMeta("STATUS",   "VARCHAR", True,  []),
+        ],
+        clustering_key="(CREATED_AT)",
+        clustering_depth=0.83,
+        row_count=1_000_000,
+    )
+    block = build_context_block(_make_context({"ORDERS": meta}))
+    assert "ORDERS" in block
+    assert "ORDER_ID" in block
+    assert "NUMBER" in block
+    assert "PRIMARY KEY" in block
+    assert "(CREATED_AT)" in block
+    assert "0.83" in block
+    assert "1,000,000" in block
+
+
+def test_build_context_block_none_clustering_key():
+    meta = TableMeta(columns=[], clustering_key=None, clustering_depth=None, row_count=None)
+    block = build_context_block(_make_context({"SMALL": meta}))
+    assert "none" in block
+
+
+def test_build_context_block_high_depth_warns():
+    meta = TableMeta(columns=[], clustering_key="(X)", clustering_depth=0.9, row_count=None)
+    block = build_context_block(_make_context({"BIG": meta}))
+    assert "poor clustering" in block or "micro-partition" in block

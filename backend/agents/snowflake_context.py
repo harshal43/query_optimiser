@@ -198,3 +198,34 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
             errors.append(f"Error fetching {table}: {exc}")
 
     return SnowflakeContext(available=True, tables=result, fetch_errors=errors)
+
+
+def build_context_block(sf_context: SnowflakeContext) -> str:
+    """
+    Render SnowflakeContext as a text block for injection into agent system prompts.
+    Returns empty string when not available or no tables fetched.
+    """
+    if not sf_context.available or not sf_context.tables:
+        return ""
+
+    lines = ["\nSnowflake Metadata (fetched live — use this to validate your suggestions):"]
+    for table_name, meta in sf_context.tables.items():
+        lines.append(f"\nTable: {table_name}")
+        if meta.columns:
+            col_parts = []
+            for col in meta.columns:
+                nullable = "NOT NULL" if not col.is_nullable else "nullable"
+                tags = [col.data_type, nullable] + col.constraints
+                col_parts.append(f"{col.name} ({', '.join(tags)})")
+            lines.append(f"  Columns: {', '.join(col_parts)}")
+        lines.append(f"  Clustering Key: {meta.clustering_key or 'none'}")
+        if meta.clustering_depth is not None:
+            note = (
+                "← poor clustering, many micro-partitions to scan"
+                if meta.clustering_depth > 0.7
+                else "← well clustered"
+            )
+            lines.append(f"  Clustering Depth: {meta.clustering_depth:.2f}  {note}")
+        if meta.row_count is not None:
+            lines.append(f"  Row Count: {meta.row_count:,}")
+    return "\n".join(lines)
