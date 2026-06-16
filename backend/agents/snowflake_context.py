@@ -138,3 +138,48 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
         clustering_depth=clustering_depth,
         row_count=row_count,
     )
+
+
+def fetch_snowflake_context(sql: str) -> SnowflakeContext:
+    """
+    Parse sql, fetch schema + clustering metadata for all referenced tables.
+    Returns SnowflakeContext(available=False) if Snowflake is not connected.
+    Never raises — all errors are logged to fetch_errors.
+    """
+    from ..data import snowflake_connector as sc
+
+    if not sc.is_connected():
+        return SnowflakeContext(available=False, tables={})
+
+    tables = _extract_tables(sql)
+    if not tables:
+        return SnowflakeContext(available=True, tables={})
+
+    creds = sc._creds or {}
+    db = (creds.get("database") or "").upper()
+    schema = (creds.get("schema_name") or "PUBLIC").upper()
+    conn = sc._conn
+
+    result: dict[str, TableMeta] = {}
+    errors: list[str] = []
+    now = time.monotonic()
+
+    for table in tables:
+        cache_key = f"{schema}.{table}"
+        if cache_key in _cache:
+            meta, fetched_at = _cache[cache_key]
+            if now - fetched_at < _TTL_SECONDS:
+                result[table] = meta
+                continue
+
+        try:
+            meta = _fetch_table_meta(conn, db, schema, table)
+            if meta is None:
+                errors.append(f"Table not found in schema: {table}")
+                continue
+            _cache[cache_key] = (meta, now)
+            result[table] = meta
+        except Exception as exc:
+            errors.append(f"Error fetching {table}: {exc}")
+
+    return SnowflakeContext(available=True, tables=result, fetch_errors=errors)
