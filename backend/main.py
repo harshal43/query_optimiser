@@ -4,10 +4,25 @@ Run with: uvicorn backend.main:app --reload --port 8000
 (from the project root: query_optimization/)
 """
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 from .api.admin_routes import router as admin_router
+
+# Our agent loggers at DEBUG; everything else stays at INFO so httpx/uvicorn aren't drowned out
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-5s | %(name)s | %(message)s",
+    datefmt="%H:%M:%S",
+)
+for _name in (
+    "backend.agents.advisor",
+    "backend.agents.optimizer",
+    "backend.agents.snowflake_context",
+):
+    logging.getLogger(_name).setLevel(logging.DEBUG)
 
 app = FastAPI(
     title="Query Optimization System",

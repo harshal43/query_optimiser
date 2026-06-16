@@ -4,12 +4,16 @@ Input: Original SQL + optimization suggestions from Agent 1 + strategy tier
 Output: Optimized Snowflake SQL + explanation + estimated credit savings %
 """
 
+import logging
 import re
+
 from ..llm.client import LLMClient
 from ..llm.cost import calculate_cost
 from ..data.admin_store import load_config
 from ..models.admin_config import AdminConfig
 from .snowflake_context import SnowflakeContext, build_context_block
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are a Snowflake SQL rewrite engineer.
 
@@ -142,6 +146,24 @@ def extract_credit_savings(content: str) -> dict:
     return {"percentage": round(pct, 2), "reasoning": reasoning}
 
 
+def _log_agent_call(sf_context: SnowflakeContext | None, strategy: str, system: str) -> None:
+    ctx_summary = (
+        f"available | tables={list(sf_context.tables.keys())}"
+        if sf_context and sf_context.available
+        else "unavailable"
+    )
+    logger.info("── Agent2/Optimizer START | strategy=%r | sf_context=%s", strategy or "default", ctx_summary)
+    logger.debug("── SYSTEM PROMPT ──\n%s\n── END SYSTEM PROMPT ──", system)
+
+
+def _log_agent_done(content: str, usage: dict) -> None:
+    logger.debug("── LLM RESPONSE ──\n%s\n── END LLM RESPONSE ──", content)
+    logger.info(
+        "── Agent2/Optimizer DONE | prompt_tokens=%s | completion_tokens=%s",
+        usage.get("prompt_tokens"), usage.get("completion_tokens"),
+    )
+
+
 async def run_optimizer_agent_async(
     client: LLMClient,
     original_query: str,
@@ -153,6 +175,7 @@ async def run_optimizer_agent_async(
     system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
     if sf_context is not None:
         system += build_context_block(sf_context)
+    _log_agent_call(sf_context, strategy, system)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Original Snowflake SQL query:\n```sql\n{original_query}\n```\n\nOptimization suggestions:\n{suggestions}\n\nProduce the optimized query, explain all changes, and estimate credit savings."}
@@ -160,6 +183,7 @@ async def run_optimizer_agent_async(
     response = await client.async_chat(messages, temperature=0.1)
     content = client.extract_content(response)
     usage = client.extract_usage(response)
+    _log_agent_done(content, usage)
     raw_usage = usage.pop("raw_usage", {})
     cost_info = calculate_cost(client.model, usage["prompt_tokens"], usage["completion_tokens"])
     return {
@@ -183,6 +207,7 @@ def run_optimizer_agent(
     system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
     if sf_context is not None:
         system += build_context_block(sf_context)
+    _log_agent_call(sf_context, strategy, system)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Original Snowflake SQL query:\n```sql\n{original_query}\n```\n\nOptimization suggestions:\n{suggestions}\n\nProduce the optimized query, explain all changes, and estimate credit savings."}
@@ -190,6 +215,7 @@ def run_optimizer_agent(
     response = client.chat(messages, temperature=0.1)
     content = client.extract_content(response)
     usage = client.extract_usage(response)
+    _log_agent_done(content, usage)
     raw_usage = usage.pop("raw_usage", {})
     cost_info = calculate_cost(client.model, usage["prompt_tokens"], usage["completion_tokens"])
     return {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -7,6 +8,8 @@ from typing import Optional
 
 import sqlglot
 from sqlglot import exp
+
+logger = logging.getLogger(__name__)
 
 
 # ── Data models ───────────────────────────────────────────────────────────────
@@ -150,9 +153,11 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
     from ..data import snowflake_connector as sc
 
     if not sc.is_connected():
+        logger.debug("── Agent3/SnowflakeContext | Snowflake not connected — skipping metadata fetch")
         return SnowflakeContext(available=False, tables={})
 
     tables = _extract_tables(sql)
+    logger.info("── Agent3/SnowflakeContext START | tables_found=%s", tables)
     if not tables:
         return SnowflakeContext(available=True, tables={})
 
@@ -163,12 +168,14 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
 
     # Fix 1 — TOCTOU: conn could become None after is_connected() returned True
     if conn is None:
+        logger.warning("── Agent3/SnowflakeContext | conn became None after is_connected() — degrading gracefully")
         return SnowflakeContext(available=False, tables={})
 
     # Fix 3 — clear cache when db/schema changes (e.g. reconnect to different database)
     global _cache_connection_key
     connection_key = f"{db}.{schema}"
     if connection_key != _cache_connection_key:
+        logger.debug("── Agent3/SnowflakeContext | connection_key changed (%r → %r) — cache cleared", _cache_connection_key, connection_key)
         _cache.clear()
         _cache_connection_key = connection_key
 
@@ -182,6 +189,7 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
         if cache_key in _cache:
             meta, fetched_at = _cache[cache_key]
             if now - fetched_at < _TTL_SECONDS:
+                logger.debug("── Agent3/SnowflakeContext | cache_hit | table=%s | age=%.1fs", cache_key, now - fetched_at)
                 result[table] = meta
                 continue
 
@@ -190,13 +198,23 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
             if meta is None:
                 # Fix 6 — message is accurate for both "table absent" and "name rejected"
                 errors.append(f"Could not fetch metadata for table: {table}")
+                logger.warning("── Agent3/SnowflakeContext | table_not_found | table=%s", table)
                 continue
+            logger.debug(
+                "── Agent3/SnowflakeContext | fetched | table=%s | cols=%d | clustering_key=%r | row_count=%s",
+                table, len(meta.columns), meta.clustering_key, meta.row_count,
+            )
             # Fix 5 — fresh timestamp so TTL isn't shortened by loop latency
             _cache[cache_key] = (meta, time.monotonic())
             result[table] = meta
         except Exception as exc:
             errors.append(f"Error fetching {table}: {exc}")
+            logger.exception("── Agent3/SnowflakeContext | fetch_error | table=%s | error=%s", table, exc)
 
+    logger.info(
+        "── Agent3/SnowflakeContext DONE | fetched=%s | errors=%s",
+        list(result.keys()), errors or "none",
+    )
     return SnowflakeContext(available=True, tables=result, fetch_errors=errors)
 
 
