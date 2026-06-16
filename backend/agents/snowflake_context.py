@@ -247,3 +247,96 @@ def build_context_block(sf_context: SnowflakeContext) -> str:
         if meta.row_count is not None:
             lines.append(f"  Row Count: {meta.row_count:,}")
     return "\n".join(lines)
+
+
+def find_recent_query_run(conn, sql_text: str) -> Optional[str]:
+    """
+    Search INFORMATION_SCHEMA.QUERY_HISTORY for a recent successful run of sql_text.
+    Returns the QUERY_ID string, or None if not found.
+    Uses the first 100 chars of normalised SQL as the LIKE search fragment.
+    """
+    import snowflake.connector
+    fingerprint = " ".join(sql_text.split())[:500]
+    search_fragment = fingerprint[:100].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    cur = conn.cursor(snowflake.connector.DictCursor)
+    cur.execute(
+        """
+        SELECT QUERY_ID
+        FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY(
+            RESULT_LIMIT => 200,
+            END_TIME_RANGE_START => DATEADD('days', -7, CURRENT_TIMESTAMP())
+        ))
+        WHERE UPPER(QUERY_TEXT) LIKE UPPER(%s)
+          AND EXECUTION_STATUS = 'SUCCESS'
+          AND QUERY_TYPE = 'SELECT'
+        ORDER BY START_TIME DESC
+        LIMIT 1
+        """,
+        (f"%{search_fragment}%",),
+    )
+    row = cur.fetchone()
+    if row:
+        return row.get("QUERY_ID") or row.get("query_id")
+    return None
+
+
+def fetch_query_kpis(conn, query_id: str, source: str = "history") -> "QueryKPIs":
+    """
+    Fetch execution metrics for a specific query_id from INFORMATION_SCHEMA.QUERY_HISTORY.
+    Returns a QueryKPIs with error set if the query_id is not found.
+    """
+    from ..models.kpi_models import QueryKPIs
+    import snowflake.connector
+
+    cur = conn.cursor(snowflake.connector.DictCursor)
+    cur.execute(
+        """
+        SELECT
+            QUERY_ID,
+            TOTAL_ELAPSED_TIME,
+            BYTES_SCANNED,
+            BYTES_SPILLED_TO_LOCAL_STORAGE,
+            BYTES_SPILLED_TO_REMOTE_STORAGE,
+            PARTITIONS_SCANNED,
+            PARTITIONS_TOTAL,
+            ROWS_PRODUCED,
+            CREDITS_USED_CLOUD_SERVICES
+        FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY(RESULT_LIMIT => 200))
+        WHERE QUERY_ID = %s
+        """,
+        (query_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return QueryKPIs(
+            query_id=query_id,
+            elapsed_ms=None, bytes_scanned=None,
+            bytes_spilled_local=None, bytes_spilled_remote=None,
+            partitions_scanned=None, partitions_total=None,
+            rows_produced=None, credits=None,
+            source=source,
+            error=f"Query ID {query_id!r} not found in INFORMATION_SCHEMA.QUERY_HISTORY",
+        )
+
+    def _int(key: str) -> Optional[int]:
+        v = row.get(key)
+        return int(v) if v is not None else None
+
+    def _float(key: str) -> Optional[float]:
+        v = row.get(key)
+        return float(v) if v is not None else None
+
+    return QueryKPIs(
+        query_id=query_id,
+        elapsed_ms=_int("TOTAL_ELAPSED_TIME"),
+        bytes_scanned=_int("BYTES_SCANNED"),
+        bytes_spilled_local=_int("BYTES_SPILLED_TO_LOCAL_STORAGE"),
+        bytes_spilled_remote=_int("BYTES_SPILLED_TO_REMOTE_STORAGE"),
+        partitions_scanned=_int("PARTITIONS_SCANNED"),
+        partitions_total=_int("PARTITIONS_TOTAL"),
+        rows_produced=_int("ROWS_PRODUCED"),
+        credits=_float("CREDITS_USED_CLOUD_SERVICES"),
+        source=source,
+        error=None,
+    )
