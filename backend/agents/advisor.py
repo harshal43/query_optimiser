@@ -39,6 +39,35 @@ SUGGESTIONS:
 ... (continue for all relevant suggestions, ordered by impact — highest first)
 
 Do NOT include any preamble, summary, or conclusion outside this structure.
+
+If your analysis reveals any of the following patterns, append a HUMAN_FLAGS section AFTER SUGGESTIONS. Omit the section entirely if none apply.
+
+Patterns requiring human input:
+- SELECT * usage — you cannot prune columns without knowing which are needed
+- Missing WHERE filter on a large table — you cannot suggest partition pruning without the filter columns
+- Implicit cartesian join — two tables joined without an explicit join key
+- ORDER BY without LIMIT — user must confirm whether LIMIT is intentional
+- Non-sargable predicate (e.g., YEAR(created_at) = 2024) — user may want to provide the exact date range
+
+HUMAN_FLAGS format — emit one block per pattern, separated by a blank line:
+
+HUMAN_FLAGS:
+HF_ID: hf_1
+HF_TYPE: select_star
+HF_TITLE: SELECT * detected — column list needed
+HF_DESCRIPTION: Cannot prune micro-partitions without knowing which columns are required.
+HF_PLACEHOLDER: Enter comma-separated columns (e.g. ORDER_ID, STATUS, CREATED_AT)
+HF_SNIPPET: SELECT * FROM orders
+
+HF_ID: hf_2
+HF_TYPE: missing_filter
+HF_TITLE: ...
+...
+
+Rules:
+- Each HF_ID must be unique: hf_1, hf_2, hf_3, ...
+- HF_SNIPPET is the exact SQL fragment that triggered the flag.
+- Do NOT emit HUMAN_FLAGS if none of the patterns above are present.
 """
 
 _TIER_LABELS = {
@@ -117,6 +146,39 @@ def parse_suggestions(raw: str) -> list:
     return result
 
 
+def parse_human_flags(raw: str) -> list[dict]:
+    match = re.search(r'HUMAN_FLAGS:\s*\n(.*?)$', raw, re.DOTALL | re.IGNORECASE)
+    if not match:
+        return []
+    section = match.group(1).strip()
+    if not section:
+        return []
+
+    blocks = re.split(r'\n\s*\n', section)
+    flags = []
+    for block in blocks:
+        block = block.strip()
+        if not block or not re.match(r'HF_ID:', block, re.IGNORECASE):
+            continue
+
+        def _get(key: str, b: str = block) -> str:
+            m = re.search(rf'^{key}:\s*(.+)$', b, re.MULTILINE | re.IGNORECASE)
+            return m.group(1).strip() if m else ""
+
+        flag_id = _get("HF_ID")
+        if not flag_id:
+            continue
+        flags.append({
+            "id": flag_id,
+            "type": _get("HF_TYPE"),
+            "title": _get("HF_TITLE"),
+            "description": _get("HF_DESCRIPTION"),
+            "placeholder": _get("HF_PLACEHOLDER"),
+            "sql_snippet": _get("HF_SNIPPET"),
+        })
+    return flags
+
+
 def _log_agent_call(sf_context: SnowflakeContext | None, strategy: str, system: str) -> None:
     ctx_summary = (
         f"available | tables={list(sf_context.tables.keys())}"
@@ -159,6 +221,7 @@ async def run_advisor_agent_async(
     return {
         "suggestions_raw": content.strip(),
         "parsed_suggestions": parse_suggestions(content),
+        "human_flags": parse_human_flags(content),
         "token_usage": {**cost_info, "raw_usage": raw_usage},
     }
 
@@ -187,5 +250,6 @@ def run_advisor_agent(
     return {
         "suggestions_raw": content.strip(),
         "parsed_suggestions": parse_suggestions(content),
+        "human_flags": parse_human_flags(content),
         "token_usage": {**cost_info, "raw_usage": raw_usage},
     }
