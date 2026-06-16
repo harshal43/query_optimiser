@@ -9,6 +9,7 @@ from ..llm.client import LLMClient
 from ..llm.cost import calculate_cost
 from ..data.admin_store import load_config
 from ..models.admin_config import AdminConfig
+from .snowflake_context import SnowflakeContext, build_context_block
 
 SYSTEM_PROMPT = """You are a Snowflake SQL performance expert with deep knowledge of:
 - Snowflake query optimization patterns
@@ -112,9 +113,16 @@ def parse_suggestions(raw: str) -> list:
     return result
 
 
-async def run_advisor_agent_async(client: LLMClient, query: str, strategy: str = "") -> dict:
+async def run_advisor_agent_async(
+    client: LLMClient,
+    query: str,
+    strategy: str = "",
+    sf_context: SnowflakeContext | None = None,
+) -> dict:
     config = load_config()
     system = SYSTEM_PROMPT + _build_advisor_suffix(config, strategy)
+    if sf_context is not None:
+        system += build_context_block(sf_context)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Analyze the following Snowflake SQL query and provide optimization suggestions.\n\n```sql\n{query}\n```"}
@@ -131,9 +139,16 @@ async def run_advisor_agent_async(client: LLMClient, query: str, strategy: str =
     }
 
 
-def run_advisor_agent(client: LLMClient, query: str, strategy: str = "") -> dict:
+def run_advisor_agent(
+    client: LLMClient,
+    query: str,
+    strategy: str = "",
+    sf_context: SnowflakeContext | None = None,
+) -> dict:
     config = load_config()
     system = SYSTEM_PROMPT + _build_advisor_suffix(config, strategy)
+    if sf_context is not None:
+        system += build_context_block(sf_context)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Analyze the following Snowflake SQL query and provide optimization suggestions.\n\n```sql\n{query}\n```"}
