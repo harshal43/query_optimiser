@@ -46,11 +46,17 @@ export async function analyzeQuery(queryId, model, strategy = '') {
   return handleResponse(res);
 }
 
-export async function optimizeQuery(queryId, model, selectedSuggestions, strategy = '') {
+export async function optimizeQuery(queryId, model, selectedSuggestions, strategy = '', resolvedFlags = []) {
   const res = await fetch(`${BASE}/optimize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_id: queryId, model, selected_suggestions: selectedSuggestions, strategy }),
+    body: JSON.stringify({
+      query_id: queryId,
+      model,
+      selected_suggestions: selectedSuggestions,
+      strategy,
+      resolved_flags: resolvedFlags,
+    }),
   });
   return handleResponse(res);
 }
@@ -64,11 +70,18 @@ export async function analyzeCustomQuery(queryText, credits, model, strategy = '
   return handleResponse(res);
 }
 
-export async function optimizeCustomQuery(queryText, credits, model, selectedSuggestions, strategy = '') {
+export async function optimizeCustomQuery(queryText, credits, model, selectedSuggestions, strategy = '', resolvedFlags = []) {
   const res = await fetch(`${BASE}/optimize-custom`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_text: queryText, credits: credits || 0, model, selected_suggestions: selectedSuggestions, strategy }),
+    body: JSON.stringify({
+      query_text: queryText,
+      credits: credits || 0,
+      model,
+      selected_suggestions: selectedSuggestions,
+      strategy,
+      resolved_flags: resolvedFlags,
+    }),
   });
   return handleResponse(res);
 }
@@ -134,6 +147,18 @@ export async function batchOptimizeQueries(items, model) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items, model }),
+  });
+  return handleResponse(res);
+}
+
+export async function executeComparison(originalQuery, optimizedQuery) {
+  const res = await fetch(`${BASE}/execute-comparison`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      original_query: originalQuery,
+      optimized_query: optimizedQuery,
+    }),
   });
   return handleResponse(res);
 }
