@@ -29,7 +29,7 @@ def test_extract_tables_cte():
 
 def test_extract_tables_parse_failure_returns_empty_list():
     result = _extract_tables("NOT VALID SQL !!!@#$%")
-    assert isinstance(result, list)
+    assert result == []
 
 
 def test_snowflake_context_defaults():

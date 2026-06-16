@@ -4,6 +4,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+import sqlglot
+from sqlglot import exp
+
 
 # ── Data models ───────────────────────────────────────────────────────────────
 
@@ -40,8 +43,6 @@ _TTL_SECONDS: int = 300
 
 def _extract_tables(sql: str) -> list[str]:
     try:
-        import sqlglot
-        from sqlglot import exp
         tree = sqlglot.parse_one(sql, dialect="snowflake")
         return list({t.name.upper() for t in tree.find_all(exp.Table) if t.name})
     except Exception:
