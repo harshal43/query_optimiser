@@ -57,6 +57,13 @@ def test_execute_and_capture_adds_limit():
     assert "50" in called_sql
 
 
+def test_execute_and_capture_accepts_cte():
+    conn, cur = _make_exec_conn("cte-qid")
+    cte_sql = "WITH recent AS (SELECT id FROM orders WHERE ts > '2024-01-01') SELECT * FROM recent"
+    result = execute_and_capture(conn, cte_sql, limit=100)
+    assert result == "cte-qid"
+
+
 def test_execute_and_capture_rejects_non_select():
     conn, _ = _make_exec_conn()
     with pytest.raises(ValueError, match="Only SELECT"):

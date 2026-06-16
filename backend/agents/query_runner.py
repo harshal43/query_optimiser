@@ -15,22 +15,28 @@ def _add_limit(sql: str, limit: int = 100) -> str:
     except Exception:
         return f"{sql.rstrip().rstrip(';')}\nLIMIT {limit}"
 
+    # For CTEs, the outermost SELECT is tree.this; for plain SELECT it is tree itself
+    select_node = tree.this if isinstance(tree, exp.With) else tree
+
     # Check only outermost LIMIT — args.get does not recurse into subqueries
-    if tree.args.get("limit") is not None:
+    if select_node.args.get("limit") is not None:
         return sql
 
-    tree.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
+    select_node.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
     return tree.sql(dialect="snowflake")
 
 
 def execute_and_capture(conn, sql: str, limit: int = 100) -> str:
     """
     Execute sql on conn with a LIMIT guard and return the Snowflake query ID.
-    Only SELECT statements are allowed; raises ValueError otherwise.
+    Only SELECT statements (including CTEs) are allowed; raises ValueError otherwise.
     """
     try:
         tree = sqlglot.parse_one(sql, dialect="snowflake")
-        if not isinstance(tree, exp.Select):
+        is_select = isinstance(tree, exp.Select) or (
+            isinstance(tree, exp.With) and isinstance(tree.this, exp.Select)
+        )
+        if not is_select:
             raise ValueError(
                 f"Only SELECT statements are allowed in sandbox execution, got: {type(tree).__name__}"
             )

@@ -516,7 +516,9 @@ async def execute_comparison(request: ExecuteComparisonRequest):
     if conn is None:
         raise HTTPException(status_code=503, detail="Not connected to Snowflake.")
     try:
-        result = build_comparison(conn, request.original_query, request.optimized_query)
+        result = await asyncio.to_thread(
+            build_comparison, conn, request.original_query, request.optimized_query
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
