@@ -9,6 +9,7 @@ from ..llm.client import LLMClient
 from ..llm.cost import calculate_cost
 from ..data.admin_store import load_config
 from ..models.admin_config import AdminConfig
+from .snowflake_context import SnowflakeContext, build_context_block
 
 SYSTEM_PROMPT = """You are a Snowflake SQL rewrite engineer.
 
@@ -146,9 +147,12 @@ async def run_optimizer_agent_async(
     original_query: str,
     suggestions: str,
     strategy: str = "",
+    sf_context: SnowflakeContext | None = None,
 ) -> dict:
     config = load_config()
     system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
+    if sf_context is not None:
+        system += build_context_block(sf_context)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Original Snowflake SQL query:\n```sql\n{original_query}\n```\n\nOptimization suggestions:\n{suggestions}\n\nProduce the optimized query, explain all changes, and estimate credit savings."}
@@ -173,9 +177,12 @@ def run_optimizer_agent(
     original_query: str,
     suggestions: str,
     strategy: str = "",
+    sf_context: SnowflakeContext | None = None,
 ) -> dict:
     config = load_config()
     system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
+    if sf_context is not None:
+        system += build_context_block(sf_context)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": f"Original Snowflake SQL query:\n```sql\n{original_query}\n```\n\nOptimization suggestions:\n{suggestions}\n\nProduce the optimized query, explain all changes, and estimate credit savings."}
