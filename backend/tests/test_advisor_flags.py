@@ -57,3 +57,19 @@ def test_parse_human_flags_two_flags():
     assert flags[0]["id"] == "hf_1"
     assert flags[1]["id"] == "hf_2"
     assert flags[1]["type"] == "missing_filter"
+
+
+def test_parse_human_flags_missing_optional_fields():
+    raw = "HUMAN_FLAGS:\nHF_ID: hf_1\n"
+    flags = parse_human_flags(raw)
+    assert len(flags) == 1
+    assert flags[0]["id"] == "hf_1"
+    assert flags[0]["type"] == ""
+    assert flags[0]["title"] == ""
+
+
+def test_parse_human_flags_case_insensitive_section_header():
+    raw = "human_flags:\nHF_ID: hf_1\nHF_TYPE: select_star\n"
+    flags = parse_human_flags(raw)
+    assert len(flags) == 1
+    assert flags[0]["type"] == "select_star"
