@@ -10,6 +10,7 @@ from ..llm.client import LLMClient
 from ..agents.advisor import run_advisor_agent, run_advisor_agent_async
 from ..agents.optimizer import run_optimizer_agent, run_optimizer_agent_async
 from ..agents.snowflake_context import fetch_snowflake_context
+from ..agents.query_runner import build_comparison
 from ..config import SUPPORTED_MODELS, get_llm_credentials
 from ..data.admin_store import load_config
 
@@ -24,11 +25,17 @@ class AnalyzeRequest(BaseModel):
     model: str
     strategy: str = ""
 
+class ResolvedFlag(BaseModel):
+    id: str
+    type: str = ""
+    value: str
+
 class OptimizeRequest(BaseModel):
     query_id: str
     model: str
     selected_suggestions: List[str]
     strategy: str = ""
+    resolved_flags: List[ResolvedFlag] = []
 
 class AnalyzeCustomRequest(BaseModel):
     query_text: str
@@ -42,6 +49,7 @@ class OptimizeCustomRequest(BaseModel):
     model: str
     selected_suggestions: List[str]
     strategy: str = ""
+    resolved_flags: List[ResolvedFlag] = []
 
 class BatchAnalyzeRequest(BaseModel):
     query_ids: List[str]
@@ -71,6 +79,21 @@ _QUALIFY_MATRIX: dict[tuple[str, str], str] = {
 }
 
 
+def _build_suggestions_with_flags(
+    selected_suggestions: List[str],
+    resolved_flags: List[ResolvedFlag],
+) -> str:
+    """Prepend human-validated inputs block to suggestions string if any flags have values."""
+    valued = [f for f in resolved_flags if f.value.strip()]
+    if not valued:
+        return "\n\n".join(selected_suggestions)
+    lines = ["Human-Validated Inputs (apply these when rewriting the query):"]
+    for f in valued:
+        lines.append(f"- {f.id} ({f.type}): {f.value}")
+    flags_block = "\n".join(lines)
+    return flags_block + "\n\n" + "\n\n".join(selected_suggestions)
+
+
 class QualifyRequest(BaseModel):
     priority: str
     tolerance: str
@@ -79,6 +102,11 @@ class QualifyRequest(BaseModel):
 class QualifyResponse(BaseModel):
     recommended_tier: str
     rules_preview: dict
+
+
+class ExecuteComparisonRequest(BaseModel):
+    original_query: str
+    optimized_query: str
 
 # ------------------------------------------------------------
 # Query catalogue endpoints
@@ -252,6 +280,7 @@ async def analyze_query(request: AnalyzeRequest):
         "credits": query_data["credits"],
         "suggestions_raw": advisor_result["suggestions_raw"],
         "parsed_suggestions": advisor_result["parsed_suggestions"],
+        "human_flags": advisor_result.get("human_flags", []),
         "snowflake_context_errors": sf_context.fetch_errors,
     }
 
@@ -278,7 +307,9 @@ async def optimize_query(request: OptimizeRequest):
 
     original_query: str = query_data["query_text"]
     credits: float = query_data["credits"]
-    selected_text = "\n\n".join(request.selected_suggestions)
+    selected_text = _build_suggestions_with_flags(
+        request.selected_suggestions, request.resolved_flags
+    )
 
     try:
         sf_context = fetch_snowflake_context(original_query)
@@ -339,6 +370,7 @@ async def analyze_custom_query(request: AnalyzeCustomRequest):
         "credits": request.credits,
         "suggestions_raw": advisor_result["suggestions_raw"],
         "parsed_suggestions": advisor_result["parsed_suggestions"],
+        "human_flags": advisor_result.get("human_flags", []),
         "snowflake_context_errors": sf_context.fetch_errors,
     }
 
@@ -357,7 +389,9 @@ async def optimize_custom_query(request: OptimizeCustomRequest):
     if not request.query_text.strip():
         raise HTTPException(status_code=400, detail="query_text must not be empty.")
 
-    selected_text = "\n\n".join(request.selected_suggestions)
+    selected_text = _build_suggestions_with_flags(
+        request.selected_suggestions, request.resolved_flags
+    )
     credits = request.credits
 
     try:
@@ -468,3 +502,24 @@ async def batch_optimize(request: BatchOptimizeRequest):
 
     results = await asyncio.gather(*[optimize_one(item) for item in request.items])
     return {"results": list(results), "total": len(results), "model": request.model}
+
+# ------------------------------------------------------------
+# Agent 4 — Execute original + optimized on Snowflake, compare KPIs
+# ------------------------------------------------------------
+
+@router.post("/execute-comparison")
+async def execute_comparison(request: ExecuteComparisonRequest):
+    if not snowflake_connector.is_connected():
+        raise HTTPException(status_code=503, detail="Not connected to Snowflake.")
+    conn = snowflake_connector._conn
+    if conn is None:
+        raise HTTPException(status_code=503, detail="Not connected to Snowflake.")
+    try:
+        result = build_comparison(conn, request.original_query, request.optimized_query)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Execution failed: {exc}")
+
+    from dataclasses import asdict
+    return asdict(result)
