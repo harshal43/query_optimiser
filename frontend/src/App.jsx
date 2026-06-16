@@ -82,7 +82,6 @@ export default function App() {
   }, []);
 
   const handleAnalyze = useCallback(async () => {
-    console.log('[handleAnalyze] confirmedTier =', confirmedTier, 'type =', typeof confirmedTier);
     setError(''); setAnalyzeResult(null); setSelectedNums(new Set()); setOptimizeResult(null); setAnalyzing(true);
     try {
       let res;
