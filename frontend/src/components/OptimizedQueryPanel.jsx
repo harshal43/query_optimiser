@@ -1,20 +1,51 @@
+// frontend/src/components/OptimizedQueryPanel.jsx
 import SqlDisplay from './SqlDisplay.jsx';
 
-/** * Displays Agent 2 output: optimized SQL + explanation.
- *
- * Props:
- *   optimizerResult: { optimized_query, explanation } | null
- *   loading        : bool
- */
-export default function OptimizedQueryPanel({ optimizerResult, loading, onRegenerate, onCorrectOutput }) {
+export default function OptimizedQueryPanel({
+  optimizerResult,
+  loading,
+  onRegenerate,
+  onCorrectOutput,
+  onRunComparison,
+  sfConnected,
+  comparisonLoading,
+}) {
   return (
     <div className="card">
-      <div className="card-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        className="card-title"
+        style={{
+          marginBottom: 12,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <span>
           Agent 2 - Optimized Query
-          <span className="badge" style={{ marginLeft: 8, background: 'rgba(63,185,80,0.15)', color: 'var(--success)' }}>OPTIMIZER</span>
+          <span
+            className="badge"
+            style={{
+              marginLeft: 8,
+              background: 'rgba(63,185,80,0.15)',
+              color: 'var(--success)',
+            }}
+          >
+            OPTIMIZER
+          </span>
         </span>
         <span style={{ display: 'flex', gap: 8 }}>
+          {sfConnected && optimizerResult && (
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: 13, padding: '2px 10px' }}
+              onClick={onRunComparison}
+              disabled={comparisonLoading}
+              title="Execute on Snowflake and compare KPIs"
+            >
+              &#9654; Run on Snowflake
+            </button>
+          )}
           <button
             className="btn btn-secondary"
             style={{ fontSize: 13, padding: '2px 10px' }}
@@ -37,13 +68,44 @@ export default function OptimizedQueryPanel({ optimizerResult, loading, onRegene
       </div>
 
       {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '32px 0' }}>
-          <span className="spinner" style={{ width: 28, height: 28, borderWidth: 3, borderColor: 'rgba(63,185,80,0.2)', borderTopColor: 'var(--success)' }} />
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 14,
+            padding: '32px 0',
+          }}
+        >
+          <span
+            className="spinner"
+            style={{
+              width: 28,
+              height: 28,
+              borderWidth: 3,
+              borderColor: 'rgba(63,185,80,0.2)',
+              borderTopColor: 'var(--success)',
+            }}
+          />
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, fontFamily: 'var(--sans)', marginBottom: 4 }}>
+            <div
+              style={{
+                fontSize: 13,
+                color: 'var(--text)',
+                fontWeight: 600,
+                fontFamily: 'var(--sans)',
+                marginBottom: 4,
+              }}
+            >
               Agent 2 rewriting query...
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--sans)' }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-dim)',
+                fontFamily: 'var(--sans)',
+              }}
+            >
               Applying selected optimizations
             </div>
           </div>
@@ -68,8 +130,16 @@ export default function OptimizedQueryPanel({ optimizerResult, loading, onRegene
           )}
           {optimizerResult.change_summary && (
             <div style={{ marginTop: 14 }}>
-              <div className="explanation-label" style={{ color: 'var(--success)' }}>Change Summary</div>
-              <div className="explanation-block" style={{ whiteSpace: 'pre-wrap' }}>
+              <div
+                className="explanation-label"
+                style={{ color: 'var(--success)' }}
+              >
+                Change Summary
+              </div>
+              <div
+                className="explanation-block"
+                style={{ whiteSpace: 'pre-wrap' }}
+              >
                 {optimizerResult.change_summary}
               </div>
             </div>
