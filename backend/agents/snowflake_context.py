@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -37,6 +38,7 @@ class SnowflakeContext:
 
 _cache: dict[str, tuple[TableMeta, float]] = {}
 _TTL_SECONDS: int = 300
+_IDENT_RE = re.compile(r'^[A-Za-z0-9_$]+$')
 
 
 # ── SQL parsing ───────────────────────────────────────────────────────────────
@@ -50,6 +52,11 @@ def _extract_tables(sql: str) -> list[str]:
 
 
 def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableMeta]:
+    if not (_IDENT_RE.match(schema) and _IDENT_RE.match(table)):
+        return None
+    if db and not _IDENT_RE.match(db):
+        return None
+
     import snowflake.connector
 
     cur = conn.cursor(snowflake.connector.DictCursor)
@@ -72,6 +79,8 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
         "FROM information_schema.table_constraints tc "
         "JOIN information_schema.key_column_usage kcu "
         "  ON tc.constraint_name = kcu.constraint_name "
+        "  AND kcu.table_name = tc.table_name "
+        "  AND kcu.table_schema = tc.table_schema "
         "WHERE tc.table_name = %s AND tc.table_schema = %s",
         (table, schema),
     )
@@ -83,17 +92,15 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
         if col and ctype:
             constraints_map.setdefault(col, []).append(ctype)
 
-    columns = [
-        ColumnMeta(
-            name=(row.get("COLUMN_NAME") or row.get("column_name") or "").upper(),
+    columns = []
+    for row in col_rows:
+        col_name = (row.get("COLUMN_NAME") or row.get("column_name") or "").upper()
+        columns.append(ColumnMeta(
+            name=col_name,
             data_type=row.get("DATA_TYPE") or row.get("data_type") or "",
             is_nullable=(row.get("IS_NULLABLE") or row.get("is_nullable") or "YES") == "YES",
-            constraints=constraints_map.get(
-                (row.get("COLUMN_NAME") or row.get("column_name") or "").upper(), []
-            ),
-        )
-        for row in col_rows
-    ]
+            constraints=constraints_map.get(col_name, []),
+        ))
 
     # 3. Clustering key + row count
     cur.execute(
@@ -107,20 +114,23 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
     row_count: Optional[int] = None
     if table_row:
         clustering_key = table_row.get("CLUSTERING_KEY") or table_row.get("clustering_key")
-        raw_rc = table_row.get("ROW_COUNT") or table_row.get("row_count")
+        raw_rc = table_row.get("ROW_COUNT")
+        if raw_rc is None:
+            raw_rc = table_row.get("row_count")
         row_count = int(raw_rc) if raw_rc is not None else None
 
     # 4. Clustering depth (system function — may raise if no clustering key)
     clustering_depth: Optional[float] = None
-    try:
-        cur.execute(f"SELECT system$clustering_depth('{db}.{schema}.{table}')")
-        depth_row = cur.fetchone()
-        if depth_row:
-            val = list(depth_row.values())[0]
-            if val is not None:
-                clustering_depth = float(val)
-    except Exception:
-        pass
+    if clustering_key:
+        try:
+            cur.execute(f"SELECT system$clustering_depth('{db}.{schema}.{table}')")
+            depth_row = cur.fetchone()
+            if depth_row:
+                val = list(depth_row.values())[0]
+                if val is not None:
+                    clustering_depth = float(val)
+        except Exception:
+            pass
 
     return TableMeta(
         columns=columns,
