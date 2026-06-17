@@ -41,7 +41,7 @@ export async function analyzeQuery(queryId, model, strategy = '') {
   const res = await fetch(`${BASE}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_id: queryId, model, strategy }),
+    body: JSON.stringify({ query_id: queryId, model, strategy: strategy || '' }),
   });
   return handleResponse(res);
 }
@@ -54,7 +54,7 @@ export async function optimizeQuery(queryId, model, selectedSuggestions, strateg
       query_id: queryId,
       model,
       selected_suggestions: selectedSuggestions,
-      strategy,
+      strategy: strategy || '',
       resolved_flags: resolvedFlags,
     }),
   });
@@ -65,7 +65,7 @@ export async function analyzeCustomQuery(queryText, credits, model, strategy = '
   const res = await fetch(`${BASE}/analyze-custom`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query_text: queryText, credits: credits || 0, model, strategy }),
+    body: JSON.stringify({ query_text: queryText, credits: credits || 0, model, strategy: strategy || '' }),
   });
   return handleResponse(res);
 }
@@ -79,7 +79,7 @@ export async function optimizeCustomQuery(queryText, credits, model, selectedSug
       credits: credits || 0,
       model,
       selected_suggestions: selectedSuggestions,
-      strategy,
+      strategy: strategy || '',
       resolved_flags: resolvedFlags,
     }),
   });
