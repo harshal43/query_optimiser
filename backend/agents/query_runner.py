@@ -44,9 +44,21 @@ def execute_and_capture(conn, sql: str, limit: int = 100) -> str:
         raise ValueError(f"SQL parse error: {exc}") from exc
 
     import snowflake.connector
+    from ..data import snowflake_connector as sc
 
     limited_sql = _add_limit(sql, limit)
     cur = conn.cursor(snowflake.connector.DictCursor)
+
+    # Set database/schema context so unqualified table names resolve (prevents error 090105)
+    creds = sc._creds or {}
+    db = (creds.get("database") or "").strip()
+    schema = (creds.get("schema_name") or "").strip()
+    from ..agents.snowflake_context import _IDENT_RE
+    if db and _IDENT_RE.match(db):
+        cur.execute(f"USE DATABASE {db}")
+    if schema and _IDENT_RE.match(schema):
+        cur.execute(f"USE SCHEMA {schema}")
+
     cur.execute(limited_sql)
     cur.fetchall()  # consume results so execution completes
     query_id: str = cur.sfqid

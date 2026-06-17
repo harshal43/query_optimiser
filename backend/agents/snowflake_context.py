@@ -56,19 +56,21 @@ def _extract_tables(sql: str) -> list[str]:
 
 
 def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableMeta]:
-    if not (_IDENT_RE.match(schema) and _IDENT_RE.match(table)):
+    # Need a known db to qualify information_schema; unqualified refs fail with 090105
+    if not db:
         return None
-    if db and not _IDENT_RE.match(db):
+    if not (_IDENT_RE.match(db) and _IDENT_RE.match(schema) and _IDENT_RE.match(table)):
         return None
 
     import snowflake.connector
 
     cur = conn.cursor(snowflake.connector.DictCursor)
+    info = f"{db}.information_schema"
 
     # 1. Column types and nullability
     cur.execute(
-        "SELECT column_name, data_type, is_nullable "
-        "FROM information_schema.columns "
+        f"SELECT column_name, data_type, is_nullable "
+        f"FROM {info}.columns "
         "WHERE table_name = %s AND table_schema = %s "
         "ORDER BY ordinal_position",
         (table, schema),
@@ -79,9 +81,9 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
 
     # 2. Constraints (PK, UNIQUE, FK)
     cur.execute(
-        "SELECT kcu.column_name, tc.constraint_type "
-        "FROM information_schema.table_constraints tc "
-        "JOIN information_schema.key_column_usage kcu "
+        f"SELECT kcu.column_name, tc.constraint_type "
+        f"FROM {info}.table_constraints tc "
+        f"JOIN {info}.key_column_usage kcu "
         "  ON tc.constraint_name = kcu.constraint_name "
         "  AND kcu.table_name = tc.table_name "
         "  AND kcu.table_schema = tc.table_schema "
@@ -108,8 +110,8 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
 
     # 3. Clustering key + row count
     cur.execute(
-        "SELECT clustering_key, row_count "
-        "FROM information_schema.tables "
+        f"SELECT clustering_key, row_count "
+        f"FROM {info}.tables "
         "WHERE table_name = %s AND table_schema = %s",
         (table, schema),
     )
@@ -255,11 +257,19 @@ def find_recent_query_run(conn, sql_text: str) -> Optional[str]:
     Returns the QUERY_ID string, or None if not found.
     Uses the first 100 chars of normalised SQL as the LIKE search fragment.
     """
+    from ..data import snowflake_connector as sc
     import snowflake.connector
+
     fingerprint = " ".join(sql_text.split())[:500]
     search_fragment = fingerprint[:100].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
+    creds = sc._creds or {}
+    db = (creds.get("database") or "").strip().upper()
+
     cur = conn.cursor(snowflake.connector.DictCursor)
+    # INFORMATION_SCHEMA.QUERY_HISTORY requires a database context (error 090105 otherwise)
+    if db and _IDENT_RE.match(db):
+        cur.execute(f"USE DATABASE {db}")
     cur.execute(
         """
         SELECT QUERY_ID
@@ -287,9 +297,15 @@ def fetch_query_kpis(conn, query_id: str, source: str = "history") -> "QueryKPIs
     Returns a QueryKPIs with error set if the query_id is not found.
     """
     from ..models.kpi_models import QueryKPIs
+    from ..data import snowflake_connector as sc
     import snowflake.connector
 
+    creds = sc._creds or {}
+    db = (creds.get("database") or "").strip().upper()
+
     cur = conn.cursor(snowflake.connector.DictCursor)
+    if db and _IDENT_RE.match(db):
+        cur.execute(f"USE DATABASE {db}")
     cur.execute(
         """
         SELECT
