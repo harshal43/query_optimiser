@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { qualifyStrategy } from '../services/api.js';
+import { qualifyStrategy, getAdminConfig } from '../services/api.js';
 
 const PRIORITIES = [
   { value: 'cost_savings', label: 'Cost Savings — reduce Snowflake credits' },
@@ -35,8 +35,17 @@ export default function HitlPanel({ onConfirm, onReset }) {
   const [showRules, setShowRules]         = useState(false);
   const [confirmed, setConfirmed]         = useState(false);
   const [error, setError]                 = useState('');
+  const [allTierConfigs, setAllTierConfigs] = useState(null);
+
+  useEffect(() => {
+    getAdminConfig()
+      .then((cfg) => setAllTierConfigs(cfg.tier_configs ?? null))
+      .catch(() => {});
+  }, []);
 
   const effectiveTier = overrideTier || recommended;
+  // When user picks an override tier, show that tier's rules; else show the qualify-returned preview
+  const displayedRules = (overrideTier && allTierConfigs?.[overrideTier]) ? allTierConfigs[overrideTier] : rulesPreview;
 
   useEffect(() => {
     if (!priority || !tolerance) {
@@ -153,7 +162,7 @@ export default function HitlPanel({ onConfirm, onReset }) {
               )}
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {rulesPreview && !confirmed && (
+              {displayedRules && !confirmed && (
                 <button
                   onClick={() => setShowRules((v) => !v)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--sans)', padding: '3px 6px' }}
@@ -180,9 +189,9 @@ export default function HitlPanel({ onConfirm, onReset }) {
             </div>
           </div>
 
-          {showRules && !confirmed && rulesPreview && (
+          {showRules && !confirmed && displayedRules && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-              {Object.entries(rulesPreview.advisor_rules ?? {})
+              {Object.entries(displayedRules.advisor_rules ?? {})
                 .filter(([, v]) => v)
                 .map(([k]) => (
                   <span key={k} style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--sans)' }}>
