@@ -11,7 +11,7 @@ from ..llm.client import LLMClient
 from ..llm.cost import calculate_cost
 from ..data.admin_store import load_config
 from ..models.admin_config import AdminConfig
-from .snowflake_context import SnowflakeContext, build_context_block
+from .snowflake_context import SnowflakeContext, build_context_block, validate_query_schema
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +174,7 @@ async def run_optimizer_agent_async(
     config = load_config()
     system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
     if sf_context is not None:
-        system += build_context_block(sf_context)
+        system += build_context_block(sf_context, strict=True)
     _log_agent_call(sf_context, strategy, system)
     messages = [
         {"role": "system", "content": system},
@@ -186,13 +186,18 @@ async def run_optimizer_agent_async(
     _log_agent_done(content, usage)
     raw_usage = usage.pop("raw_usage", {})
     cost_info = calculate_cost(client.model, usage["prompt_tokens"], usage["completion_tokens"])
+    optimized_sql = extract_sql(content)
+    violations = validate_query_schema(optimized_sql, sf_context) if sf_context else []
+    if violations:
+        logger.warning("── Agent2/Optimizer | schema_violations=%s", violations)
     return {
-        "optimized_query": extract_sql(content),
+        "optimized_query": optimized_sql,
         "explanation": extract_explanation(content),
         "credit_savings": extract_credit_savings(content),
         "change_summary": extract_change_summary(content),
         "raw_response": content,
         "token_usage": {**cost_info, "raw_usage": raw_usage},
+        "schema_violations": violations,
     }
 
 
@@ -206,7 +211,7 @@ def run_optimizer_agent(
     config = load_config()
     system = SYSTEM_PROMPT + _build_optimizer_suffix(config, strategy)
     if sf_context is not None:
-        system += build_context_block(sf_context)
+        system += build_context_block(sf_context, strict=True)
     _log_agent_call(sf_context, strategy, system)
     messages = [
         {"role": "system", "content": system},
@@ -218,11 +223,16 @@ def run_optimizer_agent(
     _log_agent_done(content, usage)
     raw_usage = usage.pop("raw_usage", {})
     cost_info = calculate_cost(client.model, usage["prompt_tokens"], usage["completion_tokens"])
+    optimized_sql = extract_sql(content)
+    violations = validate_query_schema(optimized_sql, sf_context) if sf_context else []
+    if violations:
+        logger.warning("── Agent2/Optimizer | schema_violations=%s", violations)
     return {
-        "optimized_query": extract_sql(content),
+        "optimized_query": optimized_sql,
         "explanation": extract_explanation(content),
         "credit_savings": extract_credit_savings(content),
         "change_summary": extract_change_summary(content),
         "raw_response": content,
         "token_usage": {**cost_info, "raw_usage": raw_usage},
+        "schema_violations": violations,
     }

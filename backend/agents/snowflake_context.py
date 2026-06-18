@@ -220,15 +220,29 @@ def fetch_snowflake_context(sql: str) -> SnowflakeContext:
     return SnowflakeContext(available=True, tables=result, fetch_errors=errors)
 
 
-def build_context_block(sf_context: SnowflakeContext) -> str:
+def build_context_block(sf_context: SnowflakeContext, strict: bool = False) -> str:
     """
     Render SnowflakeContext as a text block for injection into agent system prompts.
+    strict=True emits a hard constraint header for the optimizer; False emits informational header for advisor.
     Returns empty string when not available or no tables fetched.
     """
     if not sf_context.available or not sf_context.tables:
         return ""
 
-    lines = ["Snowflake Metadata (fetched live — use this to validate your suggestions):"]
+    if strict:
+        header = (
+            "\n\nSTRICT SCHEMA CONSTRAINT — THIS IS AUTHORITATIVE:\n"
+            "The schema below is the ONLY valid reference for column and table names. Rules:\n"
+            "1. ONLY use column names that appear in this schema.\n"
+            "2. NEVER invent, guess, or introduce columns not listed here.\n"
+            "3. If a suggestion requires a column absent from this schema, skip that suggestion.\n"
+            "4. Preserve all original column names exactly as they appear.\n"
+            "\nVerified Snowflake Schema (authoritative — do not deviate):"
+        )
+    else:
+        header = "\n\nSnowflake Metadata (fetched live — use this to validate your suggestions):"
+
+    lines = [header]
     for table_name, meta in sf_context.tables.items():
         lines.append(f"\nTable: {table_name}")
         if meta.columns:
@@ -249,6 +263,48 @@ def build_context_block(sf_context: SnowflakeContext) -> str:
         if meta.row_count is not None:
             lines.append(f"  Row Count: {meta.row_count:,}")
     return "\n".join(lines)
+
+
+def validate_query_schema(sql: str, sf_context: SnowflakeContext) -> list[str]:
+    """
+    Parse sql and return column names that don't exist in sf_context schema.
+    Only validates when schema is available; returns [] otherwise (can't validate = no warning).
+    CTE names and column aliases defined within the query are excluded from violations.
+    """
+    if not sf_context or not sf_context.available or not sf_context.tables:
+        return []
+
+    try:
+        tree = sqlglot.parse_one(sql, dialect="snowflake")
+    except Exception:
+        return []
+
+    # All known columns across all fetched tables
+    known: set[str] = set()
+    for meta in sf_context.tables.values():
+        for col in meta.columns:
+            known.add(col.name.upper())
+
+    # Aliases and CTE names defined within the query — not hallucinations
+    defined_in_query: set[str] = set()
+    for node in tree.find_all(exp.Alias):
+        if node.alias:
+            defined_in_query.add(node.alias.upper())
+    for node in tree.find_all(exp.CTE):
+        if node.alias:
+            defined_in_query.add(node.alias.upper())
+
+    seen: set[str] = set()
+    violations: list[str] = []
+    for node in tree.find_all(exp.Column):
+        name = node.name.upper()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        if name not in known and name not in defined_in_query:
+            violations.append(name)
+
+    return violations
 
 
 def find_recent_query_run(conn, sql_text: str) -> Optional[str]:

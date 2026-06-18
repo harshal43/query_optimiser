@@ -497,7 +497,7 @@ export default function App() {
           analyzing={analyzing || batchPhase === 'analyzing'}
           selectedNums={panelSelectedNums}
           onToggle={panelToggle}
-          onOptimize={handleOptimize}
+          onOptimize={() => handleOptimize()}
           optimizing={optimizing || batchPhase === 'optimizing'}
           canOptimize={canOptimize}
           hideOptimizeButton={hideSuggestApplyBtn}
@@ -515,7 +515,7 @@ export default function App() {
       <OptimizedQueryPanel
         optimizerResult={panelOptimizeResult?.optimizer_result ?? null}
         loading={optimizing || batchPhase === 'optimizing'}
-        onRegenerate={isBatchActive ? undefined : handleOptimize}
+        onRegenerate={isBatchActive ? undefined : () => handleOptimize()}
         onCorrectOutput={() => {}}
         onRunComparison={isBatchActive ? undefined : handleRunComparison}
         sfConnected={sfConnected}

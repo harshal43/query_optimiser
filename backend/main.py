@@ -5,18 +5,30 @@ Run with: uvicorn backend.main:app --reload --port 8000
 """
 
 import logging
+import logging.handlers
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 from .api.admin_routes import router as admin_router
 
+_LOG_FMT = "%(asctime)s | %(levelname)-5s | %(name)s | %(message)s"
+_LOG_DATE = "%H:%M:%S"
+
 # Our agent loggers at DEBUG; everything else stays at INFO so httpx/uvicorn aren't drowned out
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-5s | %(name)s | %(message)s",
-    datefmt="%H:%M:%S",
+logging.basicConfig(level=logging.INFO, format=_LOG_FMT, datefmt=_LOG_DATE)
+
+# Rotating file handler — writes to <project_root>/logs/app.log, 10 MB × 5 files
+_LOG_DIR = Path(__file__).parent.parent / "logs"
+_LOG_DIR.mkdir(exist_ok=True)
+_file_handler = logging.handlers.RotatingFileHandler(
+    _LOG_DIR / "app.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
 )
+_file_handler.setLevel(logging.DEBUG)
+_file_handler.setFormatter(logging.Formatter(_LOG_FMT, datefmt=_LOG_DATE))
+logging.getLogger().addHandler(_file_handler)
+
 for _name in (
     "backend.agents.advisor",
     "backend.agents.optimizer",

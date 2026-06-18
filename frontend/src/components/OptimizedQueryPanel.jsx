@@ -119,6 +119,27 @@ export default function OptimizedQueryPanel({
         </div>
       )}
 
+      {!loading && optimizerResult && (optimizerResult.schema_violations ?? []).length > 0 && (
+        <div
+          style={{
+            background: 'rgba(210,153,34,0.12)',
+            border: '1px solid rgba(210,153,34,0.4)',
+            borderRadius: 6,
+            padding: '8px 12px',
+            marginBottom: 10,
+            fontSize: 12,
+            fontFamily: 'var(--sans)',
+            color: 'var(--warning, #d2991a)',
+          }}
+        >
+          <strong>Schema warning:</strong> optimized query references column(s) not found in fetched
+          schema — may be CTE aliases or hallucinated names. Verify before running:{' '}
+          <code style={{ fontSize: 11 }}>
+            {(optimizerResult.schema_violations ?? []).join(', ')}
+          </code>
+        </div>
+      )}
+
       {!loading && optimizerResult && (
         <>
           <SqlDisplay sql={optimizerResult.optimized_query} maxHeight="260px" />
