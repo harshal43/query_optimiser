@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -14,7 +14,7 @@ class QueryKPIs:
     partitions_total: Optional[int]
     rows_produced: Optional[int]
     credits: Optional[float]
-    source: str  # "history" | "live"
+    source: str  # "history" | "live" | "error"
     error: Optional[str] = None
 
 
@@ -22,4 +22,8 @@ class QueryKPIs:
 class ComparisonResult:
     pre: QueryKPIs
     post: QueryKPIs
-    improvement: dict[str, float]  # metric_name → pct_change (negative = improvement)
+    improvement: dict[str, float]  # metric_name -> pct_change (negative = improvement)
+    # Additional metadata for frontend (not part of core dataclass)
+    pre_query_id: Optional[str] = field(default=None, repr=False)
+    post_query_id: Optional[str] = field(default=None, repr=False)
+    pre_source: str = field(default="live", repr=False)

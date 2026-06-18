@@ -577,6 +577,7 @@ async def execute_comparison(request: ExecuteComparisonRequest):
     conn = snowflake_connector._conn
     if conn is None:
         raise HTTPException(status_code=503, detail="Not connected to Snowflake.")
+    
     try:
         result = await asyncio.to_thread(
             build_comparison, conn, request.original_query, request.optimized_query
@@ -586,4 +587,21 @@ async def execute_comparison(request: ExecuteComparisonRequest):
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Execution failed: {exc}")
 
-    return asdict(result)
+    response = asdict(result)
+    response["pre_query_id"] = getattr(result, "pre_query_id", None)
+    response["post_query_id"] = getattr(result, "post_query_id", None)
+    response["pre_source"] = getattr(result, "pre_source", "live")
+    
+    pre_error = result.pre.error
+    post_error = result.post.error
+    
+    if pre_error and post_error:
+        response["status"] = "both_failed"
+    elif pre_error:
+        response["status"] = "original_failed"
+    elif post_error:
+        response["status"] = "optimized_failed"
+    else:
+        response["status"] = "success"
+    
+    return response
