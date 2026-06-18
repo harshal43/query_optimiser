@@ -265,11 +265,26 @@ async def analyze_query(request: AnalyzeRequest):
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
+    # FIXED: Better error handling and context reporting
+    sf_context = None
+    sf_errors = []
     try:
         sf_context = fetch_snowflake_context(query_data["query_text"])
+        sf_errors = sf_context.fetch_errors if sf_context else []
+        if sf_errors:
+            logger = __import__("logging").getLogger(__name__)
+            logger.warning("Snowflake context fetch returned errors: %s", sf_errors)
+    except Exception as exc:
+        logger = __import__("logging").getLogger(__name__)
+        logger.exception("Failed to fetch Snowflake context: %s", exc)
+        sf_errors = [str(exc)]
+
+    try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        advisor_result = await run_advisor_agent_async(client, query_data["query_text"], request.strategy, sf_context)
+        advisor_result = await run_advisor_agent_async(
+            client, query_data["query_text"], request.strategy, sf_context
+        )
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -282,7 +297,14 @@ async def analyze_query(request: AnalyzeRequest):
         "suggestions_raw": advisor_result["suggestions_raw"],
         "parsed_suggestions": advisor_result["parsed_suggestions"],
         "human_flags": advisor_result.get("human_flags", []),
-        "snowflake_context_errors": sf_context.fetch_errors,
+        "snowflake_context": {
+            "available": sf_context.available if sf_context else False,
+            "tables_fetched": list(sf_context.tables.keys()) if sf_context else [],
+            "tables_requested": sf_context.requested_tables if sf_context else [],
+            "resolved_db": sf_context.resolved_db if sf_context else None,
+            "resolved_schema": sf_context.resolved_schema if sf_context else None,
+            "errors": sf_errors,
+        },
     }
 
 # ------------------------------------------------------------
@@ -312,11 +334,21 @@ async def optimize_query(request: OptimizeRequest):
         request.selected_suggestions, request.resolved_flags
     )
 
+    # FIXED: Re-fetch context for optimize (schema may have changed or cache expired)
+    sf_context = None
+    sf_errors = []
     try:
         sf_context = fetch_snowflake_context(original_query)
+        sf_errors = sf_context.fetch_errors if sf_context else []
+    except Exception as exc:
+        sf_errors = [str(exc)]
+
+    try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        optimizer_result = await run_optimizer_agent_async(client, original_query, selected_text, request.strategy, sf_context)
+        optimizer_result = await run_optimizer_agent_async(
+            client, original_query, selected_text, request.strategy, sf_context
+        )
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -338,7 +370,11 @@ async def optimize_query(request: OptimizeRequest):
             "savings_percentage": round(savings_pct, 2),
             "savings_reasoning": savings.get("reasoning", ""),
         },
-        "snowflake_context_errors": sf_context.fetch_errors,
+        "snowflake_context": {
+            "available": sf_context.available if sf_context else False,
+            "tables_fetched": list(sf_context.tables.keys()) if sf_context else [],
+            "errors": sf_errors,
+        },
     }
 
 # ------------------------------------------------------------
@@ -355,11 +391,20 @@ async def analyze_custom_query(request: AnalyzeCustomRequest):
     if not request.query_text.strip():
         raise HTTPException(status_code=400, detail="query_text must not be empty.")
 
+    sf_context = None
+    sf_errors = []
     try:
         sf_context = fetch_snowflake_context(request.query_text)
+        sf_errors = sf_context.fetch_errors if sf_context else []
+    except Exception as exc:
+        sf_errors = [str(exc)]
+
+    try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        advisor_result = await run_advisor_agent_async(client, request.query_text, request.strategy, sf_context)
+        advisor_result = await run_advisor_agent_async(
+            client, request.query_text, request.strategy, sf_context
+        )
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -372,7 +417,11 @@ async def analyze_custom_query(request: AnalyzeCustomRequest):
         "suggestions_raw": advisor_result["suggestions_raw"],
         "parsed_suggestions": advisor_result["parsed_suggestions"],
         "human_flags": advisor_result.get("human_flags", []),
-        "snowflake_context_errors": sf_context.fetch_errors,
+        "snowflake_context": {
+            "available": sf_context.available if sf_context else False,
+            "tables_fetched": list(sf_context.tables.keys()) if sf_context else [],
+            "errors": sf_errors,
+        },
     }
 
 @router.post("/optimize-custom")
@@ -395,11 +444,20 @@ async def optimize_custom_query(request: OptimizeCustomRequest):
     )
     credits = request.credits
 
+    sf_context = None
+    sf_errors = []
     try:
         sf_context = fetch_snowflake_context(request.query_text)
+        sf_errors = sf_context.fetch_errors if sf_context else []
+    except Exception as exc:
+        sf_errors = [str(exc)]
+
+    try:
         creds = get_llm_credentials(request.model)
         client = LLMClient(api_key=creds["api_key"], base_url=creds["base_url"], model=request.model)
-        optimizer_result = await run_optimizer_agent_async(client, request.query_text, selected_text, request.strategy, sf_context)
+        optimizer_result = await run_optimizer_agent_async(
+            client, request.query_text, selected_text, request.strategy, sf_context
+        )
     except EnvironmentError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
@@ -421,7 +479,11 @@ async def optimize_custom_query(request: OptimizeCustomRequest):
             "savings_percentage": round(savings_pct, 2),
             "savings_reasoning": savings.get("reasoning", ""),
         },
-        "snowflake_context_errors": sf_context.fetch_errors,
+        "snowflake_context": {
+            "available": sf_context.available if sf_context else False,
+            "tables_fetched": list(sf_context.tables.keys()) if sf_context else [],
+            "errors": sf_errors,
+        },
     }
 
 # ------------------------------------------------------------
