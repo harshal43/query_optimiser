@@ -7,3 +7,7 @@ env/
 # Ignore local environment variables and secrets
 *.env
 .env
+.superpowers
+
+# Log files
+logs/

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 from .api.admin_routes import router as admin_router
 
-_LOG_FMT = "%(asctime)s | %(levelname)-5s | %(name)s | %(message)s"
+_LOG_FMT = "%(asctime)s | %(levelname)-5s | %(name)s:%(lineno)d | %(message)s"
 _LOG_DATE = "%H:%M:%S"
 
 # Our agent loggers at DEBUG; everything else stays at INFO so httpx/uvicorn aren't drowned out

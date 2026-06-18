@@ -108,24 +108,29 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
             )
         return None
 
-    # 2. Constraints (PK, UNIQUE, FK)
-    cur.execute(
-        f"SELECT kcu.column_name, tc.constraint_type "
-        f"FROM {info}.table_constraints tc "
-        f"JOIN {info}.key_column_usage kcu "
-        "  ON tc.constraint_name = kcu.constraint_name "
-        "  AND kcu.table_name = tc.table_name "
-        "  AND kcu.table_schema = tc.table_schema "
-        "WHERE tc.table_name = %s AND tc.table_schema = %s",
-        (table, schema),
-    )
-    constraint_rows = cur.fetchall()
+    # 2. Constraints (PK, UNIQUE, FK) — role may lack KEY_COLUMN_USAGE access; degrade gracefully
     constraints_map: dict[str, list[str]] = {}
-    for row in constraint_rows:
-        col = (row.get("COLUMN_NAME") or row.get("column_name") or "").upper()
-        ctype = row.get("CONSTRAINT_TYPE") or row.get("constraint_type") or ""
-        if col and ctype:
-            constraints_map.setdefault(col, []).append(ctype)
+    try:
+        cur.execute(
+            f"SELECT kcu.column_name, tc.constraint_type "
+            f"FROM {info}.table_constraints tc "
+            f"JOIN {info}.key_column_usage kcu "
+            "  ON tc.constraint_name = kcu.constraint_name "
+            "  AND kcu.table_name = tc.table_name "
+            "  AND kcu.table_schema = tc.table_schema "
+            "WHERE tc.table_name = %s AND tc.table_schema = %s",
+            (table, schema),
+        )
+        for row in cur.fetchall():
+            col = (row.get("COLUMN_NAME") or row.get("column_name") or "").upper()
+            ctype = row.get("CONSTRAINT_TYPE") or row.get("constraint_type") or ""
+            if col and ctype:
+                constraints_map.setdefault(col, []).append(ctype)
+    except Exception as exc:
+        logger.warning(
+            "── Agent3/_fetch_table_meta | table=%s | constraints_skipped | reason=%s",
+            table, exc,
+        )
 
     columns = []
     for row in col_rows:
