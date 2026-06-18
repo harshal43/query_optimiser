@@ -60,12 +60,20 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
     if not db:
         return None
     if not (_IDENT_RE.match(db) and _IDENT_RE.match(schema) and _IDENT_RE.match(table)):
+        logger.warning(
+            "── Agent3/_fetch_table_meta | invalid_ident | db=%r schema=%r table=%r — skipping",
+            db, schema, table,
+        )
         return None
 
     import snowflake.connector
 
     cur = conn.cursor(snowflake.connector.DictCursor)
     info = f"{db}.information_schema"
+    logger.debug(
+        "── Agent3/_fetch_table_meta | querying | db=%s schema=%s table=%s",
+        db, schema, table,
+    )
 
     # 1. Column types and nullability
     cur.execute(
@@ -77,6 +85,27 @@ def _fetch_table_meta(conn, db: str, schema: str, table: str) -> Optional[TableM
     )
     col_rows = cur.fetchall()
     if not col_rows:
+        # Diagnostic: find which schemas this table name actually lives in
+        try:
+            cur.execute(
+                f"SELECT DISTINCT table_schema FROM {info}.columns WHERE table_name = %s",
+                (table,),
+            )
+            found_schemas = [r.get("TABLE_SCHEMA") or r.get("table_schema") for r in cur.fetchall()]
+        except Exception:
+            found_schemas = []
+        if found_schemas:
+            logger.warning(
+                "── Agent3/_fetch_table_meta | table=%s not found in schema=%s"
+                " — found in schema(s): %s. Check SnowflakeConnectModal schema field.",
+                table, schema, found_schemas,
+            )
+        else:
+            logger.warning(
+                "── Agent3/_fetch_table_meta | table=%s not found in db=%s at all"
+                " (no rows in information_schema.columns). Table may not exist or role lacks SELECT privilege.",
+                table, db,
+            )
         return None
 
     # 2. Constraints (PK, UNIQUE, FK)
