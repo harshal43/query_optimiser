@@ -97,10 +97,13 @@ def _get_current_database(conn) -> Optional[str]:
     import snowflake.connector
     try:
         cur = conn.cursor(snowflake.connector.DictCursor)
-        cur.execute("SELECT CURRENT_DATABASE() AS DB")
-        row = cur.fetchone()
-        if row:
-            return (row.get("DB") or row.get("db") or "").strip().upper() or None
+        try:
+            cur.execute("SELECT CURRENT_DATABASE() AS DB")
+            row = cur.fetchone()
+            if row:
+                return (row.get("DB") or row.get("db") or "").strip().upper() or None
+        finally:
+            cur.close()
     except Exception as exc:
         logger.warning("Failed to get current database: %s", exc)
     return None
@@ -111,10 +114,13 @@ def _get_current_schema(conn) -> Optional[str]:
     import snowflake.connector
     try:
         cur = conn.cursor(snowflake.connector.DictCursor)
-        cur.execute("SELECT CURRENT_SCHEMA() AS SCH")
-        row = cur.fetchone()
-        if row:
-            return (row.get("SCH") or row.get("sch") or "").strip().upper() or None
+        try:
+            cur.execute("SELECT CURRENT_SCHEMA() AS SCH")
+            row = cur.fetchone()
+            if row:
+                return (row.get("SCH") or row.get("sch") or "").strip().upper() or None
+        finally:
+            cur.close()
     except Exception as exc:
         logger.warning("Failed to get current schema: %s", exc)
     return None
@@ -522,25 +528,28 @@ def find_recent_query_run(conn, sql_text: str) -> Optional[str]:
     db = _resolve_database(conn, creds.get("database") or "")
 
     cur = conn.cursor(snowflake.connector.DictCursor)
-    if db and _IDENT_RE.match(db):
-        cur.execute(f"USE DATABASE {db}")
+    try:
+        if db and _IDENT_RE.match(db):
+            cur.execute(f"USE DATABASE {db}")
 
-    rows = _safe_execute(
-        cur,
-        """
-        SELECT QUERY_ID
-        FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY(
-            RESULT_LIMIT => 200,
-            END_TIME_RANGE_START => DATEADD('days', -7, CURRENT_TIMESTAMP())
-        ))
-        WHERE UPPER(QUERY_TEXT) LIKE UPPER(%s)
-          AND EXECUTION_STATUS = 'SUCCESS'
-          AND QUERY_TYPE = 'SELECT'
-        ORDER BY START_TIME DESC
-        LIMIT 1
-        """,
-        (f"%{search_fragment}%",),
-    )
+        rows = _safe_execute(
+            cur,
+            """
+            SELECT QUERY_ID
+            FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY(
+                RESULT_LIMIT => 10000,
+                END_TIME_RANGE_START => DATEADD('days', -7, CURRENT_TIMESTAMP())
+            ))
+            WHERE UPPER(QUERY_TEXT) LIKE UPPER(%s)
+              AND EXECUTION_STATUS = 'SUCCESS'
+              AND QUERY_TYPE = 'SELECT'
+            ORDER BY START_TIME DESC
+            LIMIT 1
+            """,
+            (f"%{search_fragment}%",),
+        )
+    finally:
+        cur.close()
 
     if rows:
         return rows[0].get("QUERY_ID") or rows[0].get("query_id")
@@ -559,27 +568,29 @@ def fetch_query_kpis(conn, query_id: str, source: str = "history") -> "QueryKPIs
     db = _resolve_database(conn, creds.get("database") or "")
 
     cur = conn.cursor(snowflake.connector.DictCursor)
-    if db and _IDENT_RE.match(db):
-        cur.execute(f"USE DATABASE {db}")
+    try:
+        if db and _IDENT_RE.match(db):
+            cur.execute(f"USE DATABASE {db}")
 
-    rows = _safe_execute(
-        cur,
-        """
-        SELECT
-            QUERY_ID,
-            TOTAL_ELAPSED_TIME,
-            BYTES_SCANNED,
-            BYTES_SPILLED_TO_LOCAL_STORAGE,
-            BYTES_SPILLED_TO_REMOTE_STORAGE,
-            PARTITIONS_SCANNED,
-            PARTITIONS_TOTAL,
-            ROWS_PRODUCED,
-            CREDITS_USED_CLOUD_SERVICES
-        FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY(RESULT_LIMIT => 200))
-        WHERE QUERY_ID = %s
-        """,
-        (query_id,),
-    )
+        rows = _safe_execute(
+            cur,
+            """
+            SELECT
+                QUERY_ID,
+                TOTAL_ELAPSED_TIME,
+                BYTES_SCANNED,
+                BYTES_SPILLED_TO_LOCAL_STORAGE,
+                BYTES_SPILLED_TO_REMOTE_STORAGE,
+                PARTITIONS_SCANNED,
+                PARTITIONS_TOTAL,
+                ROWS_PRODUCED,
+                CREDITS_USED_CLOUD_SERVICES
+            FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY_BY_QUERY_ID(%s))
+            """,
+            (query_id,),
+        )
+    finally:
+        cur.close()
 
     if not rows:
         return QueryKPIs(

@@ -35,17 +35,12 @@ def _add_limit(sql: str, limit: int = 100) -> str:
         wrapped = f"SELECT * FROM ({sql.rstrip().rstrip(';')}) AS _limited LIMIT {limit}"
         return wrapped
 
-    # Check only outermost LIMIT
+    # Already has LIMIT? Return unchanged
     if select_node.args.get("limit") is not None:
         return sql
 
-    # Add LIMIT to the outermost SELECT
-    try:
-        select_node.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
-        return tree.sql(dialect="snowflake")
-    except Exception:
-        # Fallback if AST manipulation fails
-        return f"{sql.rstrip().rstrip(';')} LIMIT {limit}"
+    # Append LIMIT as string — avoids AST regeneration which can corrupt Snowflake-specific syntax
+    return f"{sql.rstrip().rstrip(';')}\nLIMIT {limit}"
 
 
 def execute_and_capture(conn, sql: str, limit: int = 100) -> str:
@@ -66,15 +61,17 @@ def execute_and_capture(conn, sql: str, limit: int = 100) -> str:
     # Step 1: Validate that this is a SELECT statement
     try:
         tree = sqlglot.parse_one(sql, dialect="snowflake")
-        is_select = isinstance(tree, exp.Select) or (
-            isinstance(tree, exp.With) and isinstance(tree.this, exp.Select)
-        ) or isinstance(tree, (exp.Union, exp.Intersect, exp.Except))
-        if not is_select:
-            raise ValueError(
-                f"Only SELECT statements are allowed in sandbox execution, got: {type(tree).__name__}"
-            )
-    except sqlglot.errors.ParseError as exc:
+    except Exception as exc:
         raise ValueError(f"SQL parse error: {exc}") from exc
+
+    _select_like = (exp.Select, exp.Union, exp.Intersect, exp.Except)
+    is_select = isinstance(tree, _select_like) or (
+        isinstance(tree, exp.With) and isinstance(tree.this, _select_like)
+    )
+    if not is_select:
+        raise ValueError(
+            f"Only SELECT statements are allowed in sandbox execution, got: {type(tree).__name__}"
+        )
 
     # Step 2: Add LIMIT guard
     limited_sql = _add_limit(sql, limit)

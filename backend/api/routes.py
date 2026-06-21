@@ -603,5 +603,12 @@ async def execute_comparison(request: ExecuteComparisonRequest):
         response["status"] = "optimized_failed"
     else:
         response["status"] = "success"
-    
+
+    errors = []
+    if pre_error:
+        errors.append(f"original: {pre_error}")
+    if post_error:
+        errors.append(f"optimized: {post_error}")
+    response["errors"] = errors
+
     return response
